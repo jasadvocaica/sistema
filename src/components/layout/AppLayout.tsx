@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
 import {
   LayoutDashboard, Users, Briefcase, ClipboardCheck, DollarSign,
   FileText, Handshake, Settings, LogOut, Menu, ChevronDown, Workflow, UserCog, Calendar, Wrench, Database, RefreshCw, Eye, Megaphone, Clock, Sun, Moon,
-  PanelLeftClose, PanelLeftOpen, BarChart3, MessageSquareText,
+  PanelLeftClose, PanelLeftOpen, BarChart3, MessageSquareText, ChevronRight,
 } from "lucide-react";
 import { useTheme } from "@/hooks/useTheme";
 import { useMuralAvisos } from "@/hooks/useMuralAvisos";
@@ -127,6 +127,26 @@ function MuralNavItem({ collapsed, onNavigate }: { collapsed: boolean; onNavigat
   );
 }
 
+function MenuGroup({ label, icon: Icon, items, collapsed, open, onToggle, pathname, onNavigate }: {
+  label: string; icon: typeof LayoutDashboard; items: NavItem[]; collapsed: boolean;
+  open: boolean; onToggle: () => void; pathname: string; onNavigate?: () => void;
+}) {
+  const active = items.some((item) => item.to === "/" ? pathname === "/" : pathname.startsWith(item.to));
+  return <div className="space-y-1">
+    <button type="button" onClick={onToggle} aria-expanded={open}
+      className={cn("w-full flex items-center rounded-md text-sm font-semibold transition-colors hover:bg-sidebar-accent hover:text-sidebar-primary",
+        collapsed ? "justify-center px-0 py-2.5" : "gap-3 px-3 py-2.5", active && "text-sidebar-primary bg-sidebar-accent/50")}
+      title={collapsed ? label : undefined}>
+      <Icon className="w-4 h-4 shrink-0" />
+      {!collapsed && <><span className="flex-1 text-left">{label}</span><ChevronRight className={cn("w-4 h-4 transition-transform", open && "rotate-90")} /></>}
+    </button>
+    {open && !collapsed && <div className="ml-4 border-l border-sidebar-border pl-2 space-y-0.5">
+      {items.map((item) => <SidebarItem key={item.to} {...item} collapsed={false}
+        isActive={item.to === "/" ? pathname === "/" : pathname.startsWith(item.to)} onNavigate={onNavigate} />)}
+    </div>}
+  </div>;
+}
+
 function SidebarContent({
   collapsed,
   onToggleCollapsed,
@@ -145,6 +165,48 @@ function SidebarContent({
     isGestor || (!!user?.id && respComunicacao?.user_id === user.id);
   const location = useLocation();
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [openGroup, setOpenGroup] = useState("inicio");
+  const permitted = (item: NavItem) => !item.modulo || hasPermission(item.modulo, "visualizar");
+  const groups = [
+    { id: "inicio", label: "Início", icon: LayoutDashboard, items: [
+      { to: isEstagiaria ? "/painel-operacional" : "/", label: "Visão geral", icon: LayoutDashboard },
+      ...(isGestor ? [{ to: "/painel-juliana", label: "Painel da Juliana", icon: BarChart3 }] : []),
+      { to: "/mural-avisos", label: "Mural e avisos", icon: Megaphone },
+    ] },
+    { id: "producao", label: "Produção Jurídica", icon: Briefcase, items: [
+      ...(hasPermission("controladoria", "visualizar") ? [{ to: "/painel-producao", label: "Minha produção", icon: ClipboardCheck }] : []),
+      { to: "/processos", label: "Processos", icon: Briefcase, modulo: "processos" as Modulo },
+      { to: "/controladoria", label: "Controladoria", icon: ClipboardCheck, modulo: "controladoria" as Modulo },
+      { to: "/agenda", label: "Prazos e agenda", icon: Calendar },
+      { to: "/documentos", label: "Peças e documentos", icon: FileText, modulo: "documentos" as Modulo },
+      { to: "/fluxos", label: "Fluxos e POPs", icon: Workflow, modulo: "controladoria" as Modulo },
+      { to: "/parceiros", label: "Parceiros", icon: Handshake, modulo: "parceiros" as Modulo },
+      { to: "/ferramentas", label: "Inteligência jurídica", icon: Wrench },
+    ].filter(permitted) },
+    { id: "comercial", label: "Comercial", icon: MessageSquareText, items: [
+      ...(podeVerComercial ? [{ to: "/painel-comercial", label: "Visão comercial", icon: BarChart3 }] : []),
+      { to: "/atendimento-comercial", label: "Atendimento e CRM", icon: MessageSquareText },
+      { to: "/atendimentos", label: "Fichas de atendimento", icon: ClipboardCheck, modulo: "clientes" as Modulo },
+      { to: "/clientes", label: "Clientes", icon: Users, modulo: "clientes" as Modulo },
+    ].filter((item) => permitted(item) && (item.to !== "/atendimento-comercial" || podeVerComercial || hasPermission("marketing", "visualizar"))) },
+    { id: "financeiro", label: "Financeiro", icon: DollarSign, items: [
+      { to: "/financeiro", label: "Visão financeira", icon: BarChart3, modulo: "financeiro" as Modulo },
+      { to: "/financeiro/contratos", label: "Contratos", icon: FileText, modulo: "financeiro" as Modulo },
+      { to: "/financeiro/parcelas", label: "Contas a receber", icon: DollarSign, modulo: "financeiro" as Modulo },
+      { to: "/financeiro/repasses", label: "Repasses e comissões", icon: Handshake, modulo: "financeiro" as Modulo },
+      { to: "/financeiro/conciliacao", label: "Conciliação", icon: RefreshCw, modulo: "financeiro" as Modulo },
+    ].filter(permitted) },
+    { id: "pessoas", label: "Gestão de Pessoas / RH", icon: UserCog, items: [
+      { to: "/equipe", label: "Equipe e RH", icon: Users, modulo: "equipe" as Modulo },
+      { to: "/ponto", label: "Meu ponto", icon: Clock },
+    ].filter(permitted) },
+    { id: "sistema", label: "Sistema / Configurações", icon: Settings, items: isGestor ? [
+      { to: "/configuracoes", label: "Configurações", icon: Settings },
+      { to: "/usuarios", label: "Usuários e permissões", icon: Users },
+      { to: "/importacao-exportacao", label: "Importar / Exportar", icon: Database },
+      { to: "/ia/automacoes", label: "Automações", icon: Workflow },
+    ] : [] },
+  ].filter((group) => group.items.length > 0);
 
   return (
     <TooltipProvider delayDuration={100}>
@@ -178,130 +240,9 @@ function SidebarContent({
         )}
 
         <nav className={cn("flex-1 overflow-y-auto scrollbar-thin py-4 space-y-1", collapsed ? "px-1" : "px-3")}>
-          {NAV.map((item) => {
-            if (isEstagiaria && item.to === "/") return null;
-            if (item.to === "/atendimento-comercial" && !podeVerComercial && !hasPermission("marketing", "visualizar")) return null;
-            if (item.modulo && !hasPermission(item.modulo, "visualizar")) return null;
-            const isActive = item.to === "/" ? location.pathname === "/" : location.pathname.startsWith(item.to);
-            return (
-              <SidebarItem
-                key={item.to}
-                to={item.to}
-                label={item.label}
-                icon={item.icon}
-                collapsed={collapsed}
-                isActive={isActive}
-                onNavigate={onNavigate}
-                rightSlot={
-                  item.badge ? (
-                    <Badge variant="secondary" className="bg-primary text-primary-foreground h-5 px-1.5">{item.badge}</Badge>
-                  ) : null
-                }
-              />
-            );
-          })}
-
-          {isEstagiaria && (
-            <SidebarItem
-              to="/painel-operacional"
-              label="Dashboard"
-              icon={LayoutDashboard}
-              collapsed={collapsed}
-              isActive={location.pathname.startsWith("/painel-operacional") || location.pathname === "/"}
-              onNavigate={onNavigate}
-            />
-          )}
-          <MuralNavItem collapsed={collapsed} onNavigate={onNavigate} />
-          {isEstagiaria && (
-            <SidebarItem
-              to="/ponto"
-              label="Meu ponto"
-              icon={Clock}
-              collapsed={collapsed}
-              isActive={location.pathname.startsWith("/ponto")}
-              onNavigate={onNavigate}
-            />
-          )}
-
-          {isGestor && (
-            <SidebarItem
-              to="/painel-juliana"
-              label="Meu painel"
-              icon={LayoutDashboard}
-              collapsed={collapsed}
-              isActive={location.pathname.startsWith("/painel-juliana")}
-              onNavigate={onNavigate}
-            />
-          )}
-
-          {podeVerComercial && (
-            <SidebarItem
-              to="/painel-comercial"
-              label="Painel comercial"
-              icon={LayoutDashboard}
-              collapsed={collapsed}
-              isActive={location.pathname.startsWith("/painel-comercial")}
-              onNavigate={onNavigate}
-            />
-          )}
-
-          {hasPermission("controladoria", "visualizar") && (
-            <SidebarItem
-              to="/painel-producao"
-              label="Minha produção"
-              icon={LayoutDashboard}
-              collapsed={collapsed}
-              isActive={location.pathname.startsWith("/painel-producao")}
-              onNavigate={onNavigate}
-            />
-          )}
-          {isGestor && (
-            <SidebarItem
-              to="/dashboard-gestor"
-              label="Painel executivo"
-              icon={BarChart3}
-              collapsed={collapsed}
-              isActive={location.pathname.startsWith("/dashboard-gestor")}
-              onNavigate={onNavigate}
-            />
-          )}
-          {isGestor && (
-            <>
-              <div className={cn("pt-4 pb-2", collapsed ? "px-0" : "px-3")}>
-                {collapsed ? (
-                  <div className="h-px bg-sidebar-border mx-2" />
-                ) : (
-                  <div className="text-[10px] uppercase tracking-widest text-sidebar-foreground/60 font-semibold">
-                    Administração
-                  </div>
-                )}
-              </div>
-              <SidebarItem
-                to="/usuarios"
-                label="Usuários"
-                icon={Users}
-                collapsed={collapsed}
-                isActive={location.pathname.startsWith("/usuarios")}
-                onNavigate={onNavigate}
-              />
-              <SidebarItem
-                to="/importacao-exportacao"
-                label="Importar / Exportar"
-                icon={Database}
-                collapsed={collapsed}
-                isActive={location.pathname.startsWith("/importacao-exportacao")}
-                onNavigate={onNavigate}
-              />
-              <SidebarItem
-                to="/configuracoes"
-                label="Configurações"
-                icon={Settings}
-                collapsed={collapsed}
-                isActive={location.pathname.startsWith("/configuracoes")}
-                onNavigate={onNavigate}
-              />
-            </>
-          )}
+          {groups.map((group) => <MenuGroup key={group.id} label={group.label} icon={group.icon} items={group.items}
+            collapsed={collapsed} open={openGroup === group.id} onToggle={() => setOpenGroup(openGroup === group.id ? "" : group.id)}
+            pathname={location.pathname} onNavigate={onNavigate} />)}
         </nav>
 
         <div className={cn("border-t border-sidebar-border", collapsed ? "p-2" : "p-3")}>
@@ -467,3 +408,4 @@ export default function AppLayout() {
     </div>
   );
 }
+
