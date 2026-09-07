@@ -6,16 +6,14 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 concurrency:
   group: github-pages
   cancel-in-progress: true
 
 jobs:
-  build:
+  publicar:
     runs-on: ubuntu-latest
     steps:
       - name: Baixar código
@@ -34,20 +32,9 @@ jobs:
           VITE_SUPABASE_PUBLISHABLE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZoYm1lcnZnaWRzaXhna2p5bHltIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5Njg4NzEsImV4cCI6MjA5MjU0NDg3MX0.tSkxAHgQlvqnw2cUjKR9UFvS8CiLcGc-z7EhatDTOp0
       - name: Preparar rotas da SPA
         run: cp dist/index.html dist/404.html
-      - name: Configurar Pages
-        uses: actions/configure-pages@v5
-      - name: Empacotar site
-        uses: actions/upload-pages-artifact@v3
+      - name: Publicar branch do site
+        uses: peaceiris/actions-gh-pages@v4
         with:
-          path: dist
-
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - name: Publicar
-        id: deployment
-        uses: actions/deploy-pages@v4
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+          force_orphan: true
