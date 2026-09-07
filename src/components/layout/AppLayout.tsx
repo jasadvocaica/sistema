@@ -15,10 +15,9 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard, Users, Briefcase, ClipboardCheck, DollarSign,
-  FileText, Handshake, Settings, LogOut, Menu, ChevronDown, Workflow, UserCog, Calendar, Wrench, Database, RefreshCw, Eye, Megaphone, Clock, Sun, Moon,
+  FileText, Handshake, Settings, LogOut, Menu, ChevronDown, Workflow, UserCog, Calendar, Wrench, Database, RefreshCw, Eye, Megaphone, Clock,
   PanelLeftClose, PanelLeftOpen, BarChart3, MessageSquareText, ChevronRight,
 } from "lucide-react";
-import { useTheme } from "@/hooks/useTheme";
 import { useMuralAvisos } from "@/hooks/useMuralAvisos";
 import { BrandLogo } from "@/components/BrandLogo";
 import { Modulo } from "@/contexts/AuthContext";
@@ -324,7 +323,6 @@ export default function AppLayout() {
     return window.innerWidth < 1280;
   });
   const location = useLocation();
-  const { tema, toggle } = useTheme();
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, collapsed ? "1" : "0");
@@ -375,23 +373,6 @@ export default function AppLayout() {
               </TooltipTrigger>
               <TooltipContent>
                 Força a atualização dos dados após mudanças de responsável, vínculos ou permissões.
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-          <TooltipProvider delayDuration={200}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={toggle}
-                  aria-label={tema === "dark" ? "Ativar modo claro" : "Ativar modo escuro"}
-                >
-                  {tema === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                {tema === "dark" ? "Modo claro" : "Modo escuro"}
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
