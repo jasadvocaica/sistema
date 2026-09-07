@@ -42,7 +42,7 @@ interface NavItem {
 const NAV: NavItem[] = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
   { to: "/clientes", label: "Clientes", icon: Users, modulo: "clientes" },
-  { to: "/atendimento-comercial", label: "Atendimento & Comercial", icon: MessageSquareText, modulo: "marketing" },
+  { to: "/atendimento-comercial", label: "Atendimento & Comercial", icon: MessageSquareText },
   { to: "/processos", label: "Processos", icon: Briefcase, modulo: "processos" },
   { to: "/controladoria", label: "Controladoria", icon: ClipboardCheck, modulo: "controladoria" },
   { to: "/agenda", label: "Agenda", icon: Calendar },
@@ -180,6 +180,7 @@ function SidebarContent({
         <nav className={cn("flex-1 overflow-y-auto scrollbar-thin py-4 space-y-1", collapsed ? "px-1" : "px-3")}>
           {NAV.map((item) => {
             if (isEstagiaria && item.to === "/") return null;
+            if (item.to === "/atendimento-comercial" && !podeVerComercial && !hasPermission("marketing", "visualizar")) return null;
             if (item.modulo && !hasPermission(item.modulo, "visualizar")) return null;
             const isActive = item.to === "/" ? location.pathname === "/" : location.pathname.startsWith(item.to);
             return (
