@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
 import {
   LayoutDashboard, Users, Briefcase, ClipboardCheck, DollarSign,
   FileText, Handshake, Settings, LogOut, Menu, ChevronDown, Workflow, UserCog, Calendar, Wrench, Database, RefreshCw, Eye, Megaphone, Clock, Sun, Moon,
-  PanelLeftClose, PanelLeftOpen, BarChart3,
+  PanelLeftClose, PanelLeftOpen, BarChart3, MessageSquareText,
 } from "lucide-react";
 import { useTheme } from "@/hooks/useTheme";
 import { useMuralAvisos } from "@/hooks/useMuralAvisos";
@@ -42,6 +42,7 @@ interface NavItem {
 const NAV: NavItem[] = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
   { to: "/clientes", label: "Clientes", icon: Users, modulo: "clientes" },
+  { to: "/atendimento-comercial", label: "Atendimento & Comercial", icon: MessageSquareText, modulo: "marketing" },
   { to: "/processos", label: "Processos", icon: Briefcase, modulo: "processos" },
   { to: "/controladoria", label: "Controladoria", icon: ClipboardCheck, modulo: "controladoria" },
   { to: "/agenda", label: "Agenda", icon: Calendar },
