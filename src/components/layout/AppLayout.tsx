@@ -132,15 +132,18 @@ function MenuGroup({ label, icon: Icon, items, collapsed, open, onToggle, pathna
   open: boolean; onToggle: () => void; pathname: string; onNavigate?: () => void;
 }) {
   const active = items.some((item) => item.to === "/" ? pathname === "/" : pathname.startsWith(item.to));
+  if (collapsed) {
+    const firstItem = items[0];
+    return <SidebarItem {...firstItem} label={label} icon={Icon} collapsed isActive={active} onNavigate={onNavigate} />;
+  }
   return <div className="space-y-1">
     <button type="button" onClick={onToggle} aria-expanded={open}
       className={cn("w-full flex items-center rounded-md text-sm font-semibold transition-colors hover:bg-sidebar-accent hover:text-sidebar-primary",
-        collapsed ? "justify-center px-0 py-2.5" : "gap-3 px-3 py-2.5", active && "text-sidebar-primary bg-sidebar-accent/50")}
-      title={collapsed ? label : undefined}>
+        "gap-3 px-3 py-2.5", active && "text-sidebar-primary bg-sidebar-accent/50")}>
       <Icon className="w-4 h-4 shrink-0" />
-      {!collapsed && <><span className="flex-1 text-left">{label}</span><ChevronRight className={cn("w-4 h-4 transition-transform", open && "rotate-90")} /></>}
+      <><span className="flex-1 text-left">{label}</span><ChevronRight className={cn("w-4 h-4 transition-transform", open && "rotate-90")} /></>
     </button>
-    {open && !collapsed && <div className="ml-4 border-l border-sidebar-border pl-2 space-y-0.5">
+    {open && <div className="ml-4 border-l border-sidebar-border pl-2 space-y-0.5">
       {items.map((item) => <SidebarItem key={item.to} {...item} collapsed={false}
         isActive={item.to === "/" ? pathname === "/" : pathname.startsWith(item.to)} onNavigate={onNavigate} />)}
     </div>}
