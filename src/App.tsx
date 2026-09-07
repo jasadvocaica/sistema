@@ -175,7 +175,7 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner position="top-right" richColors />
-      <BrowserRouter>
+      <BrowserRouter basename={import.meta.env.BASE_URL}>
         <PreviewModeProvider>
           <AuthProvider>
             <Suspense fallback={<PageLoader />}>
