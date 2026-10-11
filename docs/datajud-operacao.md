@@ -6,7 +6,7 @@ A função `datajud-consulta` valida usuários com `getUser`. Consultas manuais 
 
 O job `datajud-diario` executa a cada hora e consulta dois processos ativos, priorizando a consulta mais antiga. Com os oito processos atuais, uma rodada completa leva aproximadamente quatro horas. O botão de consulta manual trata o próximo processo; a consulta individual permanece disponível no processo.
 
-O cliente compartilhado consulta o CNJ numérico e formatado na mesma requisição, combina movimentos de graus distintos e tenta novamente uma vez para erros de rede, 429, 502, 503 e 504. Cada tentativa tem limite de 65 segundos. Erros de autenticação não são repetidos. Falhas de gravação não são apresentadas como sucesso; o índice único existente impede duplicação entre execuções simultâneas.
+O cliente deriva o tribunal do próprio número CNJ para evitar consultas em tribunal incorreto. O cliente compartilhado consulta o CNJ numérico e formatado na mesma requisição, combina movimentos de graus distintos e tenta novamente uma vez para erros de rede, 429, 502, 503 e 504. Cada tentativa tem limite de 65 segundos. Erros de autenticação não são repetidos. Falhas de gravação não são apresentadas como sucesso; o índice único existente impede duplicação entre execuções simultâneas.
 
 A variável `DATAJUD_API_KEY` prevalece sobre a chave pública de fallback do CNJ. O CNJ pode atualizar essa chave e apresentar indisponibilidade ou atraso de alimentação pelos tribunais. Processos ausentes são identificados no cadastro, sem fabricar movimentos ou publicações.
 
