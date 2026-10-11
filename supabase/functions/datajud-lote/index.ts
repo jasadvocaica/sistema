@@ -17,52 +17,7 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const BASE_URL = "https://api-publica.datajud.cnj.jus.br";
-
-const TRIBUNAL_ALIAS: Record<string, string> = {
-  TST: "api_publica_tst", TSE: "api_publica_tse", STJ: "api_publica_stj", STM: "api_publica_stm",
-  TRF1: "api_publica_trf1", TRF2: "api_publica_trf2", TRF3: "api_publica_trf3",
-  TRF4: "api_publica_trf4", TRF5: "api_publica_trf5", TRF6: "api_publica_trf6",
-  TJAC: "api_publica_tjac", TJAL: "api_publica_tjal", TJAM: "api_publica_tjam", TJAP: "api_publica_tjap",
-  TJBA: "api_publica_tjba", TJCE: "api_publica_tjce", TJDFT: "api_publica_tjdft", TJES: "api_publica_tjes",
-  TJGO: "api_publica_tjgo", TJMA: "api_publica_tjma", TJMG: "api_publica_tjmg", TJMS: "api_publica_tjms",
-  TJMT: "api_publica_tjmt", TJPA: "api_publica_tjpa", TJPB: "api_publica_tjpb", TJPE: "api_publica_tjpe",
-  TJPI: "api_publica_tjpi", TJPR: "api_publica_tjpr", TJRJ: "api_publica_tjrj", TJRN: "api_publica_tjrn",
-  TJRO: "api_publica_tjro", TJRR: "api_publica_tjrr", TJRS: "api_publica_tjrs", TJSC: "api_publica_tjsc",
-  TJSE: "api_publica_tjse", TJSP: "api_publica_tjsp", TJTO: "api_publica_tjto",
-  TRT1: "api_publica_trt1", TRT2: "api_publica_trt2", TRT3: "api_publica_trt3", TRT4: "api_publica_trt4",
-  TRT5: "api_publica_trt5", TRT6: "api_publica_trt6", TRT7: "api_publica_trt7", TRT8: "api_publica_trt8",
-  TRT9: "api_publica_trt9", TRT10: "api_publica_trt10", TRT11: "api_publica_trt11", TRT12: "api_publica_trt12",
-  TRT13: "api_publica_trt13", TRT14: "api_publica_trt14", TRT15: "api_publica_trt15", TRT16: "api_publica_trt16",
-  TRT17: "api_publica_trt17", TRT18: "api_publica_trt18", TRT19: "api_publica_trt19", TRT20: "api_publica_trt20",
-  TRT21: "api_publica_trt21", TRT22: "api_publica_trt22", TRT23: "api_publica_trt23", TRT24: "api_publica_trt24",
-};
-
-interface DataJudMovimento {
-  codigo?: number;
-  nome?: string;
-  dataHora?: string;
-  complemento?: any;
-  complementosTabelados?: any[];
-}
-
-async function consultarProcesso(numeroCNJLimpo: string, tribunalSigla: string, apiKey: string) {
-  const alias = TRIBUNAL_ALIAS[tribunalSigla];
-  if (!alias) throw new Error(`Tribunal ${tribunalSigla} não suportado`);
-  const url = `${BASE_URL}/${alias}/_search`;
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { Authorization: `APIKey ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ query: { match: { numeroProcesso: numeroCNJLimpo } } }),
-  });
-  if (!response.ok) {
-    const txt = await response.text();
-    throw new Error(`DataJud ${response.status}: ${txt.substring(0, 200)}`);
-  }
-  const data = await response.json();
-  const hits = data?.hits?.hits ?? [];
-  return hits.length === 0 ? null : hits[0]._source;
-}
+import { consultarProcesso, DATAJUD_PUBLIC_API_KEY } from "../_shared/datajud-client.ts";
 
 function extrairAndamentos(dadosDataJud: any) {
   const movimentos: DataJudMovimento[] = dadosDataJud?.movimentos ?? [];
@@ -84,21 +39,23 @@ async function processarUm(
     throw new Error("Processo sem CNJ ou tribunal");
   }
   const dados = await consultarProcesso(processo.numero_cnj_limpo, processo.tribunal_sigla, apiKey);
-  if (!dados) return { novos: 0, total_movimentos: 0 };
+  if (!dados) throw new Error("Processo ainda não encontrado na base pública do DataJud");
 
   const andamentos = extrairAndamentos(dados);
 
   // Dedup por datajud_id
-  const { data: existentes } = await supabase
+  const { data: existentes, error: existentesError } = await supabase
     .from("andamentos")
     .select("datajud_id")
     .eq("processo_id", processo.id)
     .not("datajud_id", "is", null);
+  if (existentesError) throw existentesError;
   const idsSet = new Set((existentes ?? []).map((a: any) => a.datajud_id));
   const novos = andamentos.filter((a) => !idsSet.has(a.datajud_id));
 
+  let inseridos = 0;
   for (const a of novos) {
-    await supabase.from("andamentos").insert({
+    const { error } = await supabase.from("andamentos").insert({
       processo_id: processo.id,
       data: a.data.slice(0, 10),
       descricao: a.descricao,
@@ -107,6 +64,8 @@ async function processarUm(
       codigo_movimento: a.codigo_movimento,
       complemento_tpu: a.complemento_tpu,
     });
+    if (error) { if (error.code === "23505") continue; throw error; }
+    inseridos++;
   }
 
   await supabase
@@ -118,14 +77,14 @@ async function processarUm(
     })
     .eq("id", processo.id);
 
-  return { novos: novos.length, total_movimentos: andamentos.length };
+  return { novos: inseridos, total_movimentos: andamentos.length };
 }
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const apiKey = Deno.env.get("DATAJUD_API_KEY");
+    const apiKey = Deno.env.get("DATAJUD_API_KEY")?.trim() || DATAJUD_PUBLIC_API_KEY;
     if (!apiKey) {
       return new Response(JSON.stringify({ error: "DATAJUD_API_KEY não configurada" }), {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -143,13 +102,13 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!,
       { global: { headers: { Authorization: authHeader } } },
     );
-    const { data: claimsData, error: claimsError } = await authClient.auth.getClaims(token);
-    if (claimsError || !claimsData?.claims) {
+    const { data: authData, error: authError } = await authClient.auth.getUser(token);
+    if (authError || !authData?.user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const userId = claimsData.claims.sub as string;
+    const userId = authData.user.id;
 
     const admin = createClient(
       Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
