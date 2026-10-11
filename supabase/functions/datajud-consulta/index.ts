@@ -10,7 +10,7 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-import { consultarProcesso, DATAJUD_PUBLIC_API_KEY } from "../_shared/datajud-client.ts";
+import { consultarProcesso, DATAJUD_PUBLIC_API_KEY, type DataJudMovimento } from "../_shared/datajud-client.ts";
 export { buildDataJudAuthHeader, consultarProcesso, formatarCNJ } from "../_shared/datajud-client.ts";
 import { TRIBUNAL_ALIAS } from "../_shared/datajud-client.ts";
 
@@ -597,13 +597,18 @@ Deno.serve(async (req) => {
     // Agendado retorna imediatamente; o runtime mantém a execução do lote.
     const executarLote = async () => {
     // Job em massa
-    const { data: processos, error: processosError } = await supabase
+    let consulta = supabase
       .from("processos")
       .select("id, numero_cnj_limpo, tribunal_sigla, tribunal_nome, cliente_id, responsavel_id, nb_inss")
       .eq("tipo", "judicial")
       .eq("datajud_ativo", true)
       .not("numero_cnj_limpo", "is", null)
-      .not("tribunal_sigla", "is", null);
+      .not("tribunal_sigla", "is", null)
+      .order("datajud_ultima_consulta", { ascending: true, nullsFirst: true });
+    if (modo === "agendado" && body.processo_id) consulta = consulta.eq("id", body.processo_id);
+    // Cada ciclo automático trata dois processos; evita o limite do worker
+    // quando o CNJ responde lentamente. Os mais antigos têm prioridade.
+    const { data: processos, error: processosError } = await (consulta.limit(modo === "agendado" ? 2 : 1));
 
     if (processosError) throw processosError;
     let consultados = 0;
@@ -678,4 +683,3 @@ Deno.serve(async (req) => {
     });
   }
 });
-
