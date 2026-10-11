@@ -25,6 +25,37 @@ export const TRIBUNAL_ALIAS: Record<string, string> = {
   TRT21: "api_publica_trt21", TRT22: "api_publica_trt22", TRT23: "api_publica_trt23", TRT24: "api_publica_trt24",
 };
 
+export function derivarTribunalDoCNJ(numeroCNJ: string): string | null {
+  const limpo = numeroCNJ.replace(/\D/g, "");
+  if (limpo.length !== 20) return null;
+
+  const segmento = parseInt(limpo.charAt(13), 10);
+  const tribunal = parseInt(limpo.substring(14, 16), 10);
+
+  if (segmento === 8) {
+    const mapa: Record<number, string> = {
+      1: "TJAC", 2: "TJAL", 3: "TJAP", 4: "TJAM", 5: "TJBA", 6: "TJCE",
+      7: "TJDFT", 8: "TJES", 9: "TJGO", 10: "TJMA", 11: "TJMT", 12: "TJMS",
+      13: "TJMG", 14: "TJPA", 15: "TJPB", 16: "TJPE", 17: "TJPI", 18: "TJPR",
+      19: "TJRJ", 20: "TJRN", 21: "TJRO", 22: "TJRR", 23: "TJRS", 24: "TJSC",
+      25: "TJSE", 26: "TJSP", 27: "TJTO",
+    };
+    return mapa[tribunal] ?? null;
+  }
+  if (segmento === 4) {
+    const mapa: Record<number, string> = {
+      1: "TRF1", 2: "TRF2", 3: "TRF3", 4: "TRF4", 5: "TRF5", 6: "TRF6",
+    };
+    return mapa[tribunal] ?? null;
+  }
+  if (segmento === 5 && tribunal >= 1 && tribunal <= 24) return `TRT${tribunal}`;
+  if (segmento === 3 && tribunal === 4) return "STJ";
+  if (segmento === 3 && tribunal === 1) return "STM";
+  if (segmento === 6) return "TSE";
+  if (segmento === 2) return "TST";
+  return null;
+}
+
 export interface DataJudMovimento {
   codigo?: number;
   nome?: string;
@@ -108,6 +139,7 @@ export async function consultarProcesso(
   tribunalSigla: string,
   apiKey: string,
 ): Promise<any | null> {
+  tribunalSigla = derivarTribunalDoCNJ(numeroCNJLimpo) ?? tribunalSigla;
   const alias = TRIBUNAL_ALIAS[tribunalSigla];
   if (!alias) throw new Error(`Tribunal ${tribunalSigla} não suportado pelo DataJud`);
 
