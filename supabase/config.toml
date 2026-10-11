@@ -1,4 +1,4 @@
-project_id = "fhbmervgidsixgkjylym"
+project_id = "mzwnljgujheumdslkloc"
 
 [functions.google-calendar]
 verify_jwt = false
@@ -25,4 +25,8 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.email-eventos]
+verify_jwt = false
+
+[functions.datajud-consulta]
+# JWT do usuário ou segredo do scheduler são validados na função.
 verify_jwt = false
