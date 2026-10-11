@@ -21,6 +21,12 @@ describe("consulta DataJud", () => {
     expect(JSON.parse(fetch.mock.calls[0][1].body).query.bool.should[1].match.numeroProcesso).toBe("1001750-18.2026.8.11.0037");
     expect(fetch).toHaveBeenCalledTimes(1);
   });
+  it("consulta TJMT mesmo se o cadastro informar TRF3", async () => {
+    const fetch = vi.fn().mockResolvedValue(resposta([hit()]));
+    vi.stubGlobal("fetch", fetch);
+    expect(await consultarProcesso(cnj, "TRF3", "key")).toBeTruthy();
+    expect(fetch.mock.calls[0][0]).toContain("api_publica_tjmt");
+  });
   it.each([429, 502, 503, 504])("recupera de HTTP %s", async status => {
     vi.useFakeTimers();
     const fetch = vi.fn().mockResolvedValueOnce(new Response("sobrecarga", { status })).mockResolvedValueOnce(resposta([hit()]));
