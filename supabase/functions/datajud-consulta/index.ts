@@ -10,105 +10,9 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-export const BASE_URL = "https://api-publica.datajud.cnj.jus.br";
-
-// Aliases por tribunal (replica src/lib/datajud.ts)
-export const TRIBUNAL_ALIAS: Record<string, string> = {
-  TST: "api_publica_tst", TSE: "api_publica_tse", STJ: "api_publica_stj", STM: "api_publica_stm",
-  TRF1: "api_publica_trf1", TRF2: "api_publica_trf2", TRF3: "api_publica_trf3",
-  TRF4: "api_publica_trf4", TRF5: "api_publica_trf5", TRF6: "api_publica_trf6",
-  TJAC: "api_publica_tjac", TJAL: "api_publica_tjal", TJAM: "api_publica_tjam", TJAP: "api_publica_tjap",
-  TJBA: "api_publica_tjba", TJCE: "api_publica_tjce", TJDFT: "api_publica_tjdft", TJES: "api_publica_tjes",
-  TJGO: "api_publica_tjgo", TJMA: "api_publica_tjma", TJMG: "api_publica_tjmg", TJMS: "api_publica_tjms",
-  TJMT: "api_publica_tjmt", TJPA: "api_publica_tjpa", TJPB: "api_publica_tjpb", TJPE: "api_publica_tjpe",
-  TJPI: "api_publica_tjpi", TJPR: "api_publica_tjpr", TJRJ: "api_publica_tjrj", TJRN: "api_publica_tjrn",
-  TJRO: "api_publica_tjro", TJRR: "api_publica_tjrr", TJRS: "api_publica_tjrs", TJSC: "api_publica_tjsc",
-  TJSE: "api_publica_tjse", TJSP: "api_publica_tjsp", TJTO: "api_publica_tjto",
-  TRT1: "api_publica_trt1", TRT2: "api_publica_trt2", TRT3: "api_publica_trt3", TRT4: "api_publica_trt4",
-  TRT5: "api_publica_trt5", TRT6: "api_publica_trt6", TRT7: "api_publica_trt7", TRT8: "api_publica_trt8",
-  TRT9: "api_publica_trt9", TRT10: "api_publica_trt10", TRT11: "api_publica_trt11", TRT12: "api_publica_trt12",
-  TRT13: "api_publica_trt13", TRT14: "api_publica_trt14", TRT15: "api_publica_trt15", TRT16: "api_publica_trt16",
-  TRT17: "api_publica_trt17", TRT18: "api_publica_trt18", TRT19: "api_publica_trt19", TRT20: "api_publica_trt20",
-  TRT21: "api_publica_trt21", TRT22: "api_publica_trt22", TRT23: "api_publica_trt23", TRT24: "api_publica_trt24",
-};
-
-interface DataJudMovimento {
-  codigo?: number;
-  nome?: string;
-  dataHora?: string;
-  complemento?: any;
-  complementosTabelados?: any[];
-}
-
-// Constrói o header Authorization no formato exigido pela API DataJud do CNJ:
-// "APIKey <chave>" — exatamente um espaço, sem aspas/caracteres extras.
-// Exportado para ser validado em testes automatizados.
-export function buildDataJudAuthHeader(apiKey: string): string {
-  return `APIKey ${apiKey}`;
-}
-
-/**
- * Formata um CNJ de 20 dígitos no padrão NNNNNNN-DD.AAAA.J.TT.OOOO.
- * O índice do DataJud armazena `numeroProcesso` com pontuação,
- * então buscas por dígitos puros podem não retornar hits em alguns
- * tribunais. Tentamos as duas formas para robustez.
- */
-export function formatarCNJ(numeroLimpo: string): string {
-  const d = numeroLimpo.replace(/\D/g, "");
-  if (d.length !== 20) return numeroLimpo;
-  return `${d.slice(0, 7)}-${d.slice(7, 9)}.${d.slice(9, 13)}.${d.slice(13, 14)}.${d.slice(14, 16)}.${d.slice(16, 20)}`;
-}
-
-async function buscarPorNumero(
-  url: string,
-  apiKey: string,
-  numero: string,
-): Promise<any | null> {
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: buildDataJudAuthHeader(apiKey),
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      query: { match: { numeroProcesso: numero } },
-    }),
-  });
-
-  if (!response.ok) {
-    const txt = await response.text();
-    throw new Error(`DataJud ${response.status}: ${txt.substring(0, 200)}`);
-  }
-
-  const data = await response.json();
-  const hits = data?.hits?.hits ?? [];
-  return hits.length === 0 ? null : hits[0]._source;
-}
-
-export async function consultarProcesso(
-  numeroCNJLimpo: string,
-  tribunalSigla: string,
-  apiKey: string,
-): Promise<any | null> {
-  const alias = TRIBUNAL_ALIAS[tribunalSigla];
-  if (!alias) throw new Error(`Tribunal ${tribunalSigla} não suportado pelo DataJud`);
-
-  const url = `${BASE_URL}/${alias}/_search`;
-  const numeroLimpo = numeroCNJLimpo.replace(/\D/g, "");
-  const numeroFormatado = formatarCNJ(numeroLimpo);
-
-  // 1ª tentativa: número formatado (como o DataJud indexa em `numeroProcesso`)
-  let hit = await buscarPorNumero(url, apiKey, numeroFormatado);
-  if (hit) return hit;
-
-  // 2ª tentativa: fallback com dígitos puros (alguns tribunais aceitam)
-  if (numeroLimpo !== numeroFormatado) {
-    hit = await buscarPorNumero(url, apiKey, numeroLimpo);
-    if (hit) return hit;
-  }
-
-  return null;
-}
+import { consultarProcesso, DATAJUD_PUBLIC_API_KEY } from "../_shared/datajud-client.ts";
+export { buildDataJudAuthHeader, consultarProcesso, formatarCNJ } from "../_shared/datajud-client.ts";
+import { TRIBUNAL_ALIAS } from "../_shared/datajud-client.ts";
 
 function extrairAndamentos(dadosDataJud: any) {
   const movimentos: DataJudMovimento[] = dadosDataJud?.movimentos ?? [];
@@ -214,27 +118,74 @@ async function processarAcaoAutomatica(
   return !!acaoTipo;
 }
 
+async function notificarNovosAndamentos(
+  supabase: any,
+  processo: any,
+  quantidade: number,
+  descricaoMaisRecente: string | null,
+) {
+  if (quantidade <= 0) return;
+  try {
+    const { data: gestores } = await supabase
+      .from("user_roles")
+      .select("user_id, profiles!inner(ativo)")
+      .eq("role", "gestor")
+      .eq("profiles.ativo", true);
+
+    const destinatarios = new Set<string>();
+    if (processo.responsavel_id) destinatarios.add(processo.responsavel_id);
+    for (const gestor of gestores ?? []) {
+      if (gestor.user_id) destinatarios.add(gestor.user_id);
+    }
+    if (destinatarios.size === 0) return;
+
+    const numero = formatarCNJ(processo.numero_cnj_limpo ?? "");
+    await supabase.from("notificacoes").insert(
+      Array.from(destinatarios).map((user_id) => ({
+        user_id,
+        tipo: "datajud_novo_andamento",
+        titulo: quantidade === 1
+          ? "Novo andamento processual"
+          : `${quantidade} novos andamentos processuais`,
+        descricao: `${numero}${descricaoMaisRecente ? ` · ${descricaoMaisRecente}` : ""}`,
+        link: `/processos/${processo.id}`,
+      })),
+    );
+  } catch (erro) {
+    console.error("[datajud-consulta] falha ao notificar novos andamentos:", erro);
+  }
+}
+
 async function processarUmProcesso(
   supabase: any,
   apiKey: string,
   processo: any,
 ): Promise<{ novos: number; acoes: number }> {
   if (!processo.numero_cnj_limpo || !processo.tribunal_sigla) {
-    return { novos: 0, acoes: 0 };
+    throw new Error("Processo sem CNJ ou tribunal");
   }
 
   const dados = await consultarProcesso(processo.numero_cnj_limpo, processo.tribunal_sigla, apiKey);
-  if (!dados) return { novos: 0, acoes: 0 };
+  if (!dados) {
+    const { error } = await supabase.from("processos").update({
+      datajud_ultima_consulta: new Date().toISOString(),
+      datajud_ultimo_erro: "Processo ainda não encontrado na base pública do DataJud",
+    }).eq("id", processo.id);
+    if (error) throw error;
+    await supabase.from("sync_log").insert({ processo_id: processo.id, fonte: "datajud", tribunal: processo.tribunal_sigla, numero_cnj: processo.numero_cnj_limpo, novos_andamentos: 0, status: "sem_novidades" });
+    return { novos: 0, acoes: 0 };
+  }
 
   const andamentos = extrairAndamentos(dados);
 
   // Filtrar duplicatas
-  const { data: existentes } = await supabase
+  const { data: existentes, error: existentesError } = await supabase
     .from("andamentos")
     .select("datajud_id")
     .eq("processo_id", processo.id)
     .not("datajud_id", "is", null);
 
+  if (existentesError) throw existentesError;
   const idsSet = new Set((existentes ?? []).map((a: any) => a.datajud_id));
   const novos = andamentos.filter((a) => !idsSet.has(a.datajud_id));
 
@@ -267,13 +218,24 @@ async function processarUmProcesso(
         `[datajud-consulta] Falha ao inserir andamento processo=${processo.id} datajud_id=${and.datajud_id}: ${error.message}`,
         error,
       );
-      continue;
+      if (error.code === "23505") continue;
+      throw error;
     }
 
     inseridosOk++;
     const gerou = await processarAcaoAutomatica(supabase, inserido, processo, cliente?.nome ?? null);
     if (gerou) acoesGeradas++;
   }
+
+  const descricaoMaisRecente = novos
+    .slice()
+    .sort((a, b) => String(b.data).localeCompare(String(a.data)))[0]?.descricao ?? null;
+  await notificarNovosAndamentos(
+    supabase,
+    processo,
+    inseridosOk,
+    descricaoMaisRecente,
+  );
 
   // Calcula data do andamento mais recente p/ exibir "Última atualização" no card
   const ultimaData = andamentos
@@ -289,7 +251,8 @@ async function processarUmProcesso(
   };
   if (ultimaData) updatePatch.ultima_atualizacao_andamento = ultimaData;
 
-  await supabase.from("processos").update(updatePatch).eq("id", processo.id);
+  const { error: updateError } = await supabase.from("processos").update(updatePatch).eq("id", processo.id);
+  if (updateError) throw updateError;
 
   // Sync log padronizado (compartilhado com scraper-tribunais)
   await supabase.from("sync_log").insert({
@@ -379,7 +342,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const apiKey = Deno.env.get("DATAJUD_API_KEY");
+    const apiKey = Deno.env.get("DATAJUD_API_KEY")?.trim() || DATAJUD_PUBLIC_API_KEY;
     if (!apiKey) {
       return new Response(JSON.stringify({ error: "DATAJUD_API_KEY não configurada" }), {
         status: 500,
@@ -387,72 +350,82 @@ Deno.serve(async (req) => {
       });
     }
 
-    // ---- AUTHENTICATION ----
-    // Reject unauthenticated requests. Only active gestores may trigger DataJud
-    // queries (which use the service-role key and write to multiple tables).
-    const authHeader = req.headers.get("Authorization") ?? "";
-    if (!authHeader.startsWith("Bearer ")) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const authClient = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: authHeader } } },
-    );
-
-    const token = authHeader.replace("Bearer ", "");
-    const { data: claimsData, error: claimsError } = await authClient.auth.getClaims(token);
-    if (claimsError || !claimsData?.claims) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const userId = claimsData.claims.sub as string;
-
-    // Service-role client for the actual work (RLS-bypass needed for cross-tenant ops)
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    // Body precisa ser lido antes para sabermos se é preview (autenticado basta)
-    // ou modo de escrita (gestor obrigatório).
     const body = await req.json().catch(() => ({}));
     const modo: "processo_unico" | "manual" | "agendado" | "preview" = body.modo ?? "manual";
 
-    // Restrict write modes:
-    // - "manual" / "agendado" (job em massa): apenas gestor
-    // - "processo_unico": gestor OU advogado responsável pelo processo alvo
-    if (modo !== "preview") {
-      const { data: isGestorRow } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", userId)
-        .eq("role", "gestor")
-        .maybeSingle();
-
-      let autorizado = !!isGestorRow;
-
-      if (!autorizado && modo === "processo_unico" && body.processo_id) {
-        const { data: procResp } = await supabase
-          .from("processos")
-          .select("responsavel_id")
-          .eq("id", body.processo_id)
-          .maybeSingle();
-        if (procResp?.responsavel_id === userId) autorizado = true;
-      }
-
-      if (!autorizado) {
-        return new Response(JSON.stringify({ error: "Forbidden" }), {
-          status: 403,
+    if (!["preview", "processo_unico", "manual", "agendado"].includes(modo)) {
+      return new Response(JSON.stringify({ error: "Modo inválido" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+    let userId: string | null = null;
+    if (modo === "agendado") {
+      const cronSecret = req.headers.get("x-datajud-cron-secret") ?? "";
+      const { data: cronValido, error: cronError } = await supabase.rpc(
+        "validar_datajud_cron_secret",
+        { _secret: cronSecret },
+      );
+      if (cronError || cronValido !== true) {
+        return new Response(JSON.stringify({ error: "Unauthorized scheduler" }), {
+          status: 401,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
+      }
+    } else {
+      const authHeader = req.headers.get("Authorization") ?? "";
+      if (!authHeader.startsWith("Bearer ")) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const authClient = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_ANON_KEY")!,
+        { global: { headers: { Authorization: authHeader } } },
+      );
+      const token = authHeader.replace("Bearer ", "");
+      const { data: authData, error: authError } = await authClient.auth.getUser(token);
+      if (authError || !authData?.user) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      userId = authData.user.id;
+      const { data: profile, error: profileError } = await supabase.from("profiles").select("ativo").eq("id", userId).maybeSingle();
+      if (profileError || profile?.ativo !== true) {
+        return new Response(JSON.stringify({ error: "Forbidden" }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
+      if (modo !== "preview") {
+        const { data: isGestorRow } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", userId)
+          .eq("role", "gestor")
+          .maybeSingle();
+
+        let autorizado = !!isGestorRow;
+        if (!autorizado && modo === "processo_unico" && body.processo_id) {
+          const { data: procResp } = await supabase
+            .from("processos")
+            .select("responsavel_id")
+            .eq("id", body.processo_id)
+            .maybeSingle();
+          if (procResp?.responsavel_id === userId) autorizado = true;
+        }
+
+        if (!autorizado) {
+          return new Response(JSON.stringify({ error: "Forbidden" }), {
+            status: 403,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
       }
     }
 
@@ -563,7 +536,7 @@ Deno.serve(async (req) => {
 
       const { data: processo, error } = await supabase
         .from("processos")
-        .select("id, numero_cnj_limpo, tribunal_sigla, tribunal_nome, cliente_id, nb_inss")
+        .select("id, numero_cnj_limpo, tribunal_sigla, tribunal_nome, cliente_id, responsavel_id, nb_inss")
         .eq("id", body.processo_id)
         .maybeSingle();
 
@@ -621,15 +594,18 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Agendado retorna imediatamente; o runtime mantém a execução do lote.
+    const executarLote = async () => {
     // Job em massa
-    const { data: processos } = await supabase
+    const { data: processos, error: processosError } = await supabase
       .from("processos")
-      .select("id, numero_cnj_limpo, tribunal_sigla, tribunal_nome, cliente_id, nb_inss")
+      .select("id, numero_cnj_limpo, tribunal_sigla, tribunal_nome, cliente_id, responsavel_id, nb_inss")
       .eq("tipo", "judicial")
       .eq("datajud_ativo", true)
       .not("numero_cnj_limpo", "is", null)
       .not("tribunal_sigla", "is", null);
 
+    if (processosError) throw processosError;
     let consultados = 0;
     let novosTotal = 0;
     let acoesTotal = 0;
@@ -687,6 +663,12 @@ Deno.serve(async (req) => {
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
+    };
+    if (modo === "agendado" && typeof EdgeRuntime !== "undefined") {
+      EdgeRuntime.waitUntil(executarLote().catch(error => console.error("[datajud-consulta] lote:", error)));
+      return new Response(JSON.stringify({ ok: true, status: "iniciado" }), { status: 202, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+    return await executarLote();
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[datajud-consulta] erro fatal:", msg);
@@ -696,3 +678,4 @@ Deno.serve(async (req) => {
     });
   }
 });
+
