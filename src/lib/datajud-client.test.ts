@@ -11,14 +11,15 @@ describe("consulta DataJud", () => {
     vi.stubGlobal("fetch", fetch);
     const dados = await consultarProcesso(cnj, "TJMT", " chave ");
     expect(dados.movimentos).toHaveLength(2);
-    expect(JSON.parse(fetch.mock.calls[0][1].body).query.match.numeroProcesso).toBe(cnj);
+    expect(JSON.parse(fetch.mock.calls[0][1].body).query.bool.should[0].match.numeroProcesso).toBe(cnj);
     expect(fetch.mock.calls[0][1].headers.Authorization).toBe("APIKey chave");
   });
-  it("usa máscara somente quando não encontrou o CNJ sem pontuação", async () => {
-    const fetch = vi.fn().mockResolvedValueOnce(resposta([])).mockResolvedValueOnce(resposta([hit()]));
+  it("inclui dígitos e máscara na mesma consulta e informa ausência", async () => {
+    const fetch = vi.fn().mockResolvedValue(resposta([]));
     vi.stubGlobal("fetch", fetch);
-    expect(await consultarProcesso(cnj, "TJMT", "key")).toBeTruthy();
-    expect(JSON.parse(fetch.mock.calls[1][1].body).query.match.numeroProcesso).toBe("1001750-18.2026.8.11.0037");
+    expect(await consultarProcesso(cnj, "TJMT", "key")).toBeNull();
+    expect(JSON.parse(fetch.mock.calls[0][1].body).query.bool.should[1].match.numeroProcesso).toBe("1001750-18.2026.8.11.0037");
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
   it.each([429, 502, 503, 504])("recupera de HTTP %s", async status => {
     vi.useFakeTimers();
