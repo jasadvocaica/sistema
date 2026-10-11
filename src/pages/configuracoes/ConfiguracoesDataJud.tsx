@@ -66,8 +66,9 @@ export default function ConfiguracoesDataJud() {
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-      toast.success("Job executado", {
-        description: `${data.consultados} processos · ${data.novos_andamentos} andamentos · ${data.acoes_geradas} ações`,
+      const informar = data.erros > 0 ? toast.warning : toast.success;
+      informar(data.erros > 0 ? "Consulta terminou com erros" : "Consulta concluída", {
+        description: `${data.consultados} processos · ${data.novos_andamentos} andamentos · ${data.acoes_geradas} ações · ${data.erros ?? 0} erros`,
       });
       load();
     } catch (err: any) {
@@ -130,7 +131,7 @@ export default function ConfiguracoesDataJud() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Configuração DataJud" description="Regras de ação por código TPU e histórico do job">
+      <PageHeader title="Configuração DataJud" description="Consulta automática por hora, com prioridade para processos há mais tempo sem atualização.">
         <Button variant="outline" asChild><Link to="/configuracoes"><ArrowLeft className="w-4 h-4" /> Voltar</Link></Button>
         <Button variant="outline" asChild>
           <Link to="/configuracoes/datajud/troubleshooting">
@@ -139,7 +140,7 @@ export default function ConfiguracoesDataJud() {
         </Button>
         <Button variant="gold" onClick={handleExecutarAgora} disabled={executando}>
           {executando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-          Executar agora
+          Consultar próximo processo
         </Button>
       </PageHeader>
 
