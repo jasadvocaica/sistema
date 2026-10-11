@@ -17,7 +17,7 @@ import {
   assertStringIncludes,
 } from "https://deno.land/std@0.224.0/assert/mod.ts";
 
-import { buildDataJudAuthHeader, consultarProcesso } from "./index.ts";
+import { buildDataJudAuthHeader, consultarProcesso } from "../_shared/datajud-client.ts";
 
 // ---------- 1. Formato do header ----------
 
@@ -71,7 +71,7 @@ Deno.test("consultarProcesso envia Authorization no formato 'APIKey <chave>'", a
       };
       return new Response(
         JSON.stringify({
-          hits: { hits: [{ _source: { numeroProcesso: "123", movimentos: [] } }] },
+          hits: { hits: [{ _source: { numeroProcesso: "12345678901234567890", movimentos: [] } }] },
         }),
         { status: 200, headers: { "Content-Type": "application/json" } },
       );
@@ -81,7 +81,7 @@ Deno.test("consultarProcesso envia Authorization no formato 'APIKey <chave>'", a
       assertEquals(capturado.authorization, `APIKey ${apiKey}`);
       assertEquals(capturado.contentType, "application/json");
       assert(out, "Esperava receber o _source do hit");
-      assertEquals((out as any).numeroProcesso, "123");
+      assertEquals((out as any).numeroProcesso, "12345678901234567890");
     },
   );
 });
