@@ -25,7 +25,7 @@ export const TRIBUNAL_ALIAS: Record<string, string> = {
   TRT21: "api_publica_trt21", TRT22: "api_publica_trt22", TRT23: "api_publica_trt23", TRT24: "api_publica_trt24",
 };
 
-interface DataJudMovimento {
+export interface DataJudMovimento {
   codigo?: number;
   nome?: string;
   dataHora?: string;
@@ -42,9 +42,7 @@ export function buildDataJudAuthHeader(apiKey: string): string {
 
 /**
  * Formata um CNJ de 20 dígitos no padrão NNNNNNN-DD.AAAA.J.TT.OOOO.
- * O índice do DataJud armazena `numeroProcesso` com pontuação,
- * então buscas por dígitos puros podem não retornar hits em alguns
- * tribunais. Tentamos as duas formas para robustez.
+ * A consulta aceita o formato numérico oficial e a máscara legada.
  */
 export function formatarCNJ(numeroLimpo: string): string {
   const d = numeroLimpo.replace(/\D/g, "");
@@ -53,19 +51,25 @@ export function formatarCNJ(numeroLimpo: string): string {
 }
 
 async function buscarPorNumero(url: string, apiKey: string, numero: string): Promise<any | null> {
-  for (let tentativa = 0; tentativa < 3; tentativa++) {
+  for (let tentativa = 0; tentativa < 2; tentativa++) {
     let response: Response;
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 12000);
+    const timeout = setTimeout(() => controller.abort(), 65000);
     try {
       response = await fetch(url, {
         method: "POST",
         headers: { Authorization: buildDataJudAuthHeader(apiKey.trim()), "Content-Type": "application/json" },
         signal: controller.signal,
-        body: JSON.stringify({ size: 100, query: { match: { numeroProcesso: numero } } }),
+        body: JSON.stringify({
+          size: 20,
+          query: { bool: { should: [
+            { match: { numeroProcesso: numero } },
+            { match: { numeroProcesso: formatarCNJ(numero) } },
+          ], minimum_should_match: 1 } },
+        }),
       });
     } catch (erro) {
-      if (tentativa === 2) throw new Error("DataJud indisponível ou excedeu o tempo limite de consulta");
+      if (tentativa === 1) throw new Error("DataJud indisponível ou excedeu o tempo limite de consulta");
       await new Promise(r => setTimeout(r, 1000 * 2 ** tentativa));
       continue;
     } finally {
@@ -73,7 +77,7 @@ async function buscarPorNumero(url: string, apiKey: string, numero: string): Pro
     }
     if (!response.ok) {
       const mensagem = (await response.text()).slice(0, 200);
-      if ([429, 502, 503, 504].includes(response.status) && tentativa < 2) {
+      if ([429, 502, 503, 504].includes(response.status) && tentativa < 1) {
         const retryAfter = Number(response.headers.get("Retry-After"));
         const espera = Math.min(5000, Math.max(1000 * 2 ** tentativa, Number.isFinite(retryAfter) ? retryAfter * 1000 : 0));
         await new Promise(r => setTimeout(r, espera));
@@ -109,19 +113,8 @@ export async function consultarProcesso(
 
   const url = `${BASE_URL}/${alias}/_search`;
   const numeroLimpo = numeroCNJLimpo.replace(/\D/g, "");
-  const numeroFormatado = formatarCNJ(numeroLimpo);
   if (numeroLimpo.length !== 20) throw new Error("Número CNJ deve ter 20 dígitos");
 
-  // DataJud usa o CNJ sem pontuação; formato com máscara é fallback.
-  let hit = await buscarPorNumero(url, apiKey, numeroLimpo);
-  if (hit) return hit;
-
-  // Fallback para índices legados com máscara.
-  if (numeroLimpo !== numeroFormatado) {
-    hit = await buscarPorNumero(url, apiKey, numeroFormatado);
-    if (hit) return hit;
-  }
-
-  return null;
+  // Consulta ambas as formas em uma requisição, sem dobrar o tempo de espera.
+  return await buscarPorNumero(url, apiKey, numeroLimpo);
 }
-
