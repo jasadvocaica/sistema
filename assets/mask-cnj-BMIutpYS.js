@@ -1,0 +1,1 @@
+function d(t){if(!t)return"Processo administrativo";const o=t.trim(),r=o.match(/^\d{7}-\d{2}\.(\d{4})\.(\d)\.(\d{2})\.(\d{4})$/);if(r){const[,s,i,c,e]=r;return`•••••••-••.${s}.${i}.${c}.${e}`}const n=o.replace(/\D/g,"");return n.length>=4?`••••• ${n.slice(-4)}`:"Processo"}export{d as m};
