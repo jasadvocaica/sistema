@@ -190,7 +190,12 @@ function SidebarContent({
       { to: "/atendimento-comercial", label: "Atendimento e CRM", icon: MessageSquareText },
       { to: "/atendimentos", label: "Fichas de atendimento", icon: ClipboardCheck, modulo: "clientes" as Modulo },
       { to: "/clientes", label: "Clientes", icon: Users, modulo: "clientes" as Modulo },
-    ].filter((item) => permitted(item) && (item.to !== "/atendimento-comercial" || podeVerComercial || hasPermission("marketing", "visualizar"))) },
+      { to: "/comercial/demandas", label: "Serviços e oportunidades", icon: Briefcase, modulo: "clientes" as Modulo },
+      { to: "/catalogo-juridico", label: "Catálogo jurídico", icon: FileText, modulo: "clientes" as Modulo },
+    ].filter((item) => permitted(item) && (item.to !== "/atendimento-comercial" || podeVerComercial || hasPermission("clientes", "visualizar"))) },
+    { id: "marketing", label: "Marketing", icon: Megaphone, items: [
+      { to: "/marketing", label: "Departamento de marketing", icon: Megaphone, modulo: "marketing" as Modulo },
+    ].filter(permitted) },
     { id: "financeiro", label: "Financeiro", icon: DollarSign, items: [
       { to: "/financeiro", label: "Visão financeira", icon: BarChart3, modulo: "financeiro" as Modulo },
       { to: "/financeiro/contratos", label: "Contratos", icon: FileText, modulo: "financeiro" as Modulo },
@@ -388,7 +393,7 @@ export default function AppLayout() {
         </main>
       </div>
 
-      <AssistenteFlutuante />
+      {!location.pathname.startsWith("/marketing") && <AssistenteFlutuante />}
     </div>
   );
 }
