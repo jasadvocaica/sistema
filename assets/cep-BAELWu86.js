@@ -1,0 +1,1 @@
+async function n(a){const o=a.replace(/\D/g,"");if(o.length!==8)return null;try{const r=await(await fetch(`https://viacep.com.br/ws/${o}/json/`)).json();return r.erro?null:{logradouro:r.logradouro,bairro:r.bairro,cidade:r.localidade,estado:r.uf}}catch{return null}}export{n as b};
