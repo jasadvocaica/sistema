@@ -393,7 +393,7 @@ export default function AppLayout() {
         </main>
       </div>
 
-      {!location.pathname.startsWith("/marketing") && <AssistenteFlutuante />}
+      {!location.pathname.startsWith("/marketing") && !location.pathname.startsWith("/documentos/pecas/") && <AssistenteFlutuante />}
     </div>
   );
 }

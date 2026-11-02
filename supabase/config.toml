@@ -1,5 +1,9 @@
 project_id = "mzwnljgujheumdslkloc"
 
+[functions.documentos-assistente]
+# A função valida a sessão e mantém todas as consultas sob RLS do usuário.
+verify_jwt = false
+
 [functions.google-calendar]
 verify_jwt = false
 
