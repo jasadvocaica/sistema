@@ -117,6 +117,11 @@ function abrir() {
 beforeEach(() => {
   cleanup();
   vi.clearAllMocks();
+  mocks.invoke.mockReset();
+  mocks.invoke.mockResolvedValue({
+    data: { provedores: { openai: true, anthropic: false } },
+    error: null,
+  });
   mocks.aprova = true;
   vi.spyOn(window, "confirm").mockReturnValue(true);
   // Radix Select/scroll usa APIs que não existem no jsdom.
@@ -214,5 +219,62 @@ describe("área de produção — salvamento e sugestões", () => {
     );
     expect(mocks.rpc).toHaveBeenCalledTimes(1);
     expect(screen.getByRole("alert")).toHaveTextContent("outra sessão");
+  });
+
+  it("envia a consulta somente ao provedor escolhido", async () => {
+    mocks.invoke.mockImplementation(async (_nome, args) =>
+      args.method === "GET"
+        ? {
+            data: { provedores: { openai: true, anthropic: true } },
+            error: null,
+          }
+        : {
+            data: {
+              texto: "Sugestão do Claude",
+              pendencias: [],
+              modelo: "claude-sonnet-4-6",
+            },
+            error: null,
+          },
+    );
+    abrir();
+    await screen.findByLabelText("Documento");
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Assistente IA" }), {
+      button: 0,
+      ctrlKey: false,
+    });
+    fireEvent.keyDown(await screen.findByLabelText("Provedor de IA"), {
+      key: "ArrowDown",
+    });
+    fireEvent.click(
+      await screen.findByRole("option", { name: "Claude · Anthropic" }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Consultar assistente" }),
+    );
+    await screen.findByText("Sugestão do Claude");
+    const consultas = mocks.invoke.mock.calls.filter((c) => c[1]?.body);
+    expect(consultas).toHaveLength(1);
+    expect(consultas[0][1].body.provedor).toBe("anthropic");
+  });
+
+  it("não consulta um provedor cuja chave ainda não foi configurada", async () => {
+    abrir();
+    await screen.findByLabelText("Documento");
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Assistente IA" }), {
+      button: 0,
+      ctrlKey: false,
+    });
+    fireEvent.keyDown(await screen.findByLabelText("Provedor de IA"), {
+      key: "ArrowDown",
+    });
+    fireEvent.click(
+      await screen.findByRole("option", { name: "Claude · Anthropic" }),
+    );
+    await screen.findByText(/Este provedor aguarda configuração/);
+    expect(
+      screen.getByRole("button", { name: "Consultar assistente" }),
+    ).toBeDisabled();
+    expect(mocks.invoke.mock.calls.filter((c) => c[1]?.body)).toHaveLength(0);
   });
 });

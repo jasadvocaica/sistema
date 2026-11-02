@@ -18,11 +18,48 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
   // Sonda de publicação: informa apenas disponibilidade, sem expor credenciais ou dados.
   if (req.method === "GET") {
-    const configurada = Boolean(Deno.env.get("LOVABLE_API_KEY"));
+    const provedores = {
+      openai: Boolean(Deno.env.get("OPENAI_API_KEY")),
+      anthropic: Boolean(Deno.env.get("ANTHROPIC_API_KEY")),
+    };
+    const configurada = Object.values(provedores).some(Boolean);
+    // Verificação de credencial/acesso ao modelo, sem gerar texto nem enviar dados de casos.
+    const verificar = new URL(req.url).searchParams.get("verificar");
+    if (verificar === "openai") {
+      let valida = false;
+      if (provedores.openai) {
+        try {
+          const modelo = Deno.env.get("OPENAI_MODEL") || "gpt-4.1";
+          const resposta = await fetch(
+            `https://api.openai.com/v1/models/${encodeURIComponent(modelo)}`,
+            {
+              headers: {
+                Authorization: `Bearer ${Deno.env.get("OPENAI_API_KEY")}`,
+              },
+              signal: AbortSignal.timeout(15_000),
+            },
+          );
+          valida = resposta.ok;
+          await resposta.body?.cancel();
+        } catch {
+          /* A sonda informa falha sem devolver dados ou mensagens do provedor. */
+        }
+      }
+      return json(
+        {
+          status: valida ? "ok" : "conexao_pendente",
+          ia_configurada: configurada,
+          provedores,
+          conexao: { provedor: "openai", valida },
+        },
+        valida ? 200 : 503,
+      );
+    }
     return json(
       {
         status: configurada ? "ok" : "configuracao_pendente",
         ia_configurada: configurada,
+        provedores,
       },
       configurada ? 200 : 503,
     );
@@ -70,6 +107,7 @@ Deno.serve(async (req) => {
       !uuid.test(body.cliente_id ?? "") ||
       (body.processo_id && !uuid.test(body.processo_id)) ||
       !["minuta", "estrutura", "revisao"].includes(body.acao) ||
+      !["openai", "anthropic"].includes(body.provedor ?? "openai") ||
       typeof body.conteudo !== "string" ||
       typeof body.instrucao !== "string" ||
       body.instrucao.length > 8000 ||
@@ -151,12 +189,19 @@ Deno.serve(async (req) => {
       prazo_conferido: contexto.prazo_conferido,
       fontes: contexto.fontes,
     };
-    const key = Deno.env.get("LOVABLE_API_KEY");
+    const provedor = body.provedor ?? "openai";
+    const nomeProvedor = provedor === "anthropic" ? "Anthropic" : "OpenAI";
+    const key = Deno.env.get(
+      provedor === "anthropic" ? "ANTHROPIC_API_KEY" : "OPENAI_API_KEY",
+    );
+    const modelo =
+      provedor === "anthropic"
+        ? Deno.env.get("ANTHROPIC_MODEL") || "claude-sonnet-4-6"
+        : Deno.env.get("OPENAI_MODEL") || "gpt-4.1";
     if (!key)
       return json(
         {
-          error:
-            "O provedor de IA ainda não foi configurado para este ambiente.",
+          error: `A chave da API ${nomeProvedor} ainda não foi configurada no servidor.`,
         },
         503,
       );
@@ -180,37 +225,72 @@ REGRAS:
 - Não calcule ou confirme prazo processual; registre dúvidas para conferência pelo responsável. Não aprove estratégia, não protocole e não conclua tarefas.
 - Preserve a finalidade da peça e as orientações expressas. Não introduza honorários, índices ou valores padronizados sem informação do caso.
 - Retorne JSON válido no formato {"texto":"sugestão completa em texto simples, sem HTML nem cercas de código","pendencias":["pontos concretos a conferir"]}.`;
+    const mensagem = JSON.stringify({
+      instrucao: body.instrucao,
+      titulo: body.titulo,
+      cliente,
+      processo,
+      contexto: dadosContexto,
+      minuta_atual: body.conteudo,
+    });
     const resposta = await fetch(
-      "https://ai.gateway.lovable.dev/v1/chat/completions",
+      provedor === "anthropic"
+        ? "https://api.anthropic.com/v1/messages"
+        : "https://api.openai.com/v1/chat/completions",
       {
         method: "POST",
         signal: AbortSignal.timeout(90_000),
-        headers: {
-          Authorization: `Bearer ${key}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "google/gemini-2.5-pro",
-          max_tokens: 12000,
-          response_format: { type: "json_object" },
-          messages: [
-            { role: "system", content: system },
-            {
-              role: "user",
-              content: JSON.stringify({
-                instrucao: body.instrucao,
-                titulo: body.titulo,
-                cliente,
-                processo,
-                contexto: dadosContexto,
-                minuta_atual: body.conteudo,
-              }),
-            },
-          ],
-        }),
+        headers:
+          provedor === "anthropic"
+            ? {
+                "x-api-key": key,
+                "anthropic-version": "2023-06-01",
+                "Content-Type": "application/json",
+              }
+            : {
+                Authorization: `Bearer ${key}`,
+                "Content-Type": "application/json",
+              },
+        body: JSON.stringify(
+          provedor === "anthropic"
+            ? {
+                model: modelo,
+                max_tokens: 12000,
+                system,
+                messages: [{ role: "user", content: mensagem }],
+              }
+            : {
+                model: modelo,
+                max_completion_tokens: 12000,
+                response_format: { type: "json_object" },
+                messages: [
+                  { role: "system", content: system },
+                  { role: "user", content: mensagem },
+                ],
+              },
+        ),
       },
     );
     if (!resposta.ok) {
+      const erroProvedor = await resposta.json().catch(() => null);
+      if (
+        resposta.status === 429 &&
+        erroProvedor?.error?.code === "insufficient_quota"
+      )
+        return json(
+          {
+            error:
+              "A conta da API OpenAI está sem saldo ou atingiu o limite de uso. Sua minuta foi preservada.",
+          },
+          402,
+        );
+      if (resposta.status === 401 || resposta.status === 403)
+        return json(
+          {
+            error: `${nomeProvedor} recusou a credencial ou o acesso ao modelo. Confira a configuração da conta de API.`,
+          },
+          503,
+        );
       if (resposta.status === 429)
         return json(
           {
@@ -232,8 +312,12 @@ REGRAS:
         502,
       );
     }
-    const completion = (await resposta.json())?.choices?.[0];
-    if (completion?.finish_reason === "length")
+    const resultadoProvedor = await resposta.json();
+    const completion = resultadoProvedor?.choices?.[0];
+    if (
+      completion?.finish_reason === "length" ||
+      resultadoProvedor?.stop_reason === "max_tokens"
+    )
       return json(
         {
           error:
@@ -241,7 +325,16 @@ REGRAS:
         },
         502,
       );
-    const content = completion?.message?.content;
+    const content =
+      provedor === "anthropic"
+        ? (resultadoProvedor?.content ?? [])
+            .filter(
+              (bloco: { type?: string; text?: string }) =>
+                bloco.type === "text",
+            )
+            .map((bloco: { text: string }) => bloco.text)
+            .join("\n")
+        : completion?.message?.content;
     if (typeof content !== "string")
       return json({ error: "O provedor retornou uma resposta inválida." }, 502);
     let resultado;
@@ -256,6 +349,8 @@ REGRAS:
     if (typeof resultado?.texto !== "string" || !resultado.texto.trim())
       return json({ error: "A sugestão veio vazia. Tente novamente." }, 502);
     return json({
+      provedor,
+      modelo,
       texto: resultado.texto,
       pendencias: Array.isArray(resultado.pendencias)
         ? resultado.pendencias.filter((p: unknown) => typeof p === "string")

@@ -69,6 +69,12 @@ export function ApoioProducao(props: Props) {
     { id: string; titulo: string; processo_id: string | null }[]
   >([]);
   const [erroTarefas, setErroTarefas] = useState(false);
+  const provedor = contexto.provedor_ia ?? "openai";
+  const [provedores, setProvedores] = useState<{
+    openai: boolean;
+    anthropic: boolean;
+  } | null>(null);
+  const provedorIndisponivel = provedores?.[provedor] === false;
   const pedido = useRef(0);
   const contextoAtual = useRef(contexto);
   contextoAtual.current = contexto;
@@ -115,6 +121,34 @@ export function ApoioProducao(props: Props) {
 
   const atualizar = (campo: keyof ContextoProducao, valor: unknown) =>
     onContexto({ ...contexto, [campo]: valor });
+
+  useEffect(() => {
+    let ativo = true;
+    void (async () => {
+      try {
+        const { data, error } = await supabase.functions.invoke(
+          "documentos-assistente",
+          { method: "GET" },
+        );
+        const saude =
+          data ??
+          (error?.context instanceof Response
+            ? await error.context.json().catch(() => null)
+            : null);
+        if (
+          ativo &&
+          typeof saude?.provedores?.openai === "boolean" &&
+          typeof saude?.provedores?.anthropic === "boolean"
+        )
+          setProvedores(saude.provedores);
+      } catch {
+        /* A consulta normal apresenta o erro específico se a sonda falhar. */
+      }
+    })();
+    return () => {
+      ativo = false;
+    };
+  }, []);
 
   async function carregarComentarios() {
     if (!props.pecaId) {
@@ -208,6 +242,7 @@ export function ApoioProducao(props: Props) {
             titulo: props.titulo,
             conteudo: textoDoHtml(props.html),
             contexto,
+            provedor,
           },
         },
       );
@@ -232,6 +267,8 @@ export function ApoioProducao(props: Props) {
       onContexto({
         ...contextoAtual.current,
         ultima_ia: {
+          provedor,
+          modelo: typeof data.modelo === "string" ? data.modelo : undefined,
           acao,
           texto: data.texto,
           pendencias: Array.isArray(data.pendencias)
@@ -495,6 +532,44 @@ export function ApoioProducao(props: Props) {
           </fieldset>
         </TabsContent>
         <TabsContent value="ia" className="space-y-4 p-1">
+          <div className="space-y-2">
+            <Label htmlFor="provedor-ia">Provedor de IA</Label>
+            <Select
+              value={provedor}
+              onValueChange={(v) => atualizar("provedor_ia", v)}
+              disabled={readOnly || gerando}
+            >
+              <SelectTrigger id="provedor-ia">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="openai">GPT · OpenAI</SelectItem>
+                <SelectItem value="anthropic">Claude · Anthropic</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Somente o provedor escolhido recebe o conteúdo desta consulta.
+            </p>
+            {provedorIndisponivel && (
+              <div
+                role="status"
+                className="rounded-md bg-amber-500/10 p-3 text-xs"
+              >
+                Este provedor aguarda configuração da chave de API pela gestão.
+                O editor e a revisão continuam disponíveis.
+                {isGestor && (
+                  <a
+                    className="block mt-2 underline"
+                    href="https://supabase.com/dashboard/project/mzwnljgujheumdslkloc/functions/secrets"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Configurar chave no servidor
+                  </a>
+                )}
+              </div>
+            )}
+          </div>
           <div className="rounded-lg bg-muted p-3 text-xs leading-relaxed">
             O assistente usa a minuta atual e o contexto informado. A resposta é
             uma sugestão para conferência do advogado.
@@ -532,7 +607,13 @@ export function ApoioProducao(props: Props) {
           <Button
             className="w-full"
             onClick={gerar}
-            disabled={gerando || readOnly || !props.pecaId || props.ocupado}
+            disabled={
+              gerando ||
+              readOnly ||
+              !props.pecaId ||
+              props.ocupado ||
+              provedorIndisponivel
+            }
           >
             {gerando ? (
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -550,7 +631,12 @@ export function ApoioProducao(props: Props) {
             <div className="space-y-3 border-t pt-4">
               <div className="flex justify-between items-center">
                 <Badge variant="outline">
-                  Sugestão • {contexto.ultima_ia.acao}
+                  {contexto.ultima_ia.provedor === "anthropic"
+                    ? "Claude"
+                    : contexto.ultima_ia.provedor === "openai"
+                      ? "GPT"
+                      : "IA"}{" "}
+                  • {contexto.ultima_ia.acao}
                 </Badge>
                 <span className="text-xs text-muted-foreground">
                   {new Date(contexto.ultima_ia.gerado_em).toLocaleString(

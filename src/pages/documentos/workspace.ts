@@ -8,6 +8,7 @@ export interface FonteProducao {
 }
 
 export interface ContextoProducao {
+  provedor_ia?: "openai" | "anthropic";
   tarefa_id: string;
   intimacao: string;
   objetivo: string;
@@ -19,6 +20,8 @@ export interface ContextoProducao {
   fontes: FonteProducao[];
   checklist: string[];
   ultima_ia?: {
+    provedor?: "openai" | "anthropic";
+    modelo?: string;
     acao: string;
     texto: string;
     pendencias: string[];

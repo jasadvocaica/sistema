@@ -28,6 +28,9 @@ let handler,
   sessao = true,
   providerCalls = 0,
   providerStatus = 200,
+  providerConfigured = true,
+  anthropicConfigured = true,
+  providerCode = null,
   providerFinish = "stop",
   enviado;
 const authOptions = [];
@@ -65,23 +68,54 @@ const client = {
 };
 const DenoMock = {
   env: {
-    get: (name) =>
-      name === "SUPABASE_SERVICE_ROLE_KEY"
-        ? assert.fail("Nunca deve usar service_role")
-        : name === "SUPABASE_ANON_KEY"
-          ? "anon-fixture"
-          : "fixture",
+    get: (name) => {
+      if (name === "SUPABASE_SERVICE_ROLE_KEY")
+        assert.fail("Nunca deve usar service_role");
+      if (["OPENAI_MODEL", "ANTHROPIC_MODEL"].includes(name)) return undefined;
+      if (name === "ANTHROPIC_API_KEY" && !anthropicConfigured)
+        return undefined;
+      if (name === "OPENAI_API_KEY" && !providerConfigured) return undefined;
+      return name === "SUPABASE_ANON_KEY" ? "anon-fixture" : "fixture";
+    },
   },
   serve: (fn) => {
     handler = fn;
   },
 };
 const fetchMock = async (url, options) => {
+  if (url === "https://api.openai.com/v1/models/gpt-4.1") {
+    assert.equal(options.headers.Authorization, "Bearer fixture");
+    return new Response("{}", { status: providerStatus });
+  }
   providerCalls++;
   enviado = JSON.parse(options.body);
-  assert.equal(url, "https://ai.gateway.lovable.dev/v1/chat/completions");
+  const anthropic = url === "https://api.anthropic.com/v1/messages";
+  if (anthropic) {
+    assert.equal(enviado.model, "claude-sonnet-4-6");
+    assert.equal(enviado.max_tokens, 12000);
+    assert.equal(options.headers["x-api-key"], "fixture");
+    assert.equal(options.headers["anthropic-version"], "2023-06-01");
+    assert.equal(options.headers.Authorization, undefined);
+    return new Response(
+      JSON.stringify({
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({ texto: "Sugestão Claude", pendencias: [] }),
+          },
+        ],
+        stop_reason: providerFinish === "length" ? "max_tokens" : "end_turn",
+      }),
+      { status: providerStatus },
+    );
+  }
+  assert.equal(url, "https://api.openai.com/v1/chat/completions");
+  assert.equal(enviado.model, "gpt-4.1");
+  assert.equal(enviado.max_completion_tokens, 12000);
+  assert.equal(options.headers.Authorization, "Bearer fixture");
   return new Response(
     JSON.stringify({
+      error: providerCode ? { code: providerCode } : undefined,
       choices: [
         {
           finish_reason: providerFinish,
@@ -135,7 +169,24 @@ const health = await handler(
   new Request("http://localhost/documentos-assistente"),
 );
 assert.equal(health.status, 200);
-assert.deepEqual(await health.json(), { status: "ok", ia_configurada: true });
+assert.deepEqual(await health.json(), {
+  status: "ok",
+  ia_configurada: true,
+  provedores: { openai: true, anthropic: true },
+});
+const conexao = await handler(
+  new Request("http://localhost/documentos-assistente?verificar=openai"),
+);
+assert.equal(conexao.status, 200);
+assert.equal((await conexao.json()).conexao.valida, true);
+providerConfigured = false;
+anthropicConfigured = false;
+assert.equal(
+  (await handler(new Request("http://localhost/documentos-assistente"))).status,
+  503,
+);
+providerConfigured = true;
+anthropicConfigured = true;
 
 assert.equal((await call(body, false)).status, 401);
 sessao = false;
@@ -154,6 +205,8 @@ assert.equal(
 const sucesso = await call();
 assert.equal(sucesso.status, 200);
 assert.deepEqual(await sucesso.json(), {
+  provedor: "openai",
+  modelo: "gpt-4.1",
   texto: "Sugestão para revisão",
   pendencias: ["Conferir documentos"],
 });
@@ -165,8 +218,27 @@ assert.ok(
   ),
 );
 assert.ok(!JSON.stringify(enviado).includes("NÃO USAR COMO PROVA"));
+const claude = await call({ ...body, provedor: "anthropic" });
+assert.equal(claude.status, 200);
+assert.deepEqual(await claude.json(), {
+  provedor: "anthropic",
+  modelo: "claude-sonnet-4-6",
+  texto: "Sugestão Claude",
+  pendencias: [],
+});
+anthropicConfigured = false;
+const chamadasAntes = providerCalls;
+assert.equal((await call({ ...body, provedor: "anthropic" })).status, 503);
+assert.equal(providerCalls, chamadasAntes);
+anthropicConfigured = true;
+assert.equal((await call({ ...body, provedor: "desconhecido" })).status, 400);
 providerStatus = 429;
 assert.equal((await call()).status, 429);
+providerCode = "insufficient_quota";
+assert.equal((await call()).status, 402);
+providerCode = null;
+providerStatus = 401;
+assert.equal((await call()).status, 503);
 providerStatus = 200;
 providerFinish = "length";
 assert.equal((await call()).status, 502);

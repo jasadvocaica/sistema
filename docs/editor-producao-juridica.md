@@ -24,9 +24,11 @@ Componentes da publicação:
 2. A Edge Function `documentos-assistente` e sua configuração em `supabase/config.toml`.
 3. O frontend atualizado.
 
-Na verificação da publicação, `LOVABLE_API_KEY` ainda não estava configurada no projeto. O editor, o salvamento e a revisão funcionam independentemente; a geração por IA depende dessa configuração.
+Os provedores selecionados pela usuária são OpenAI (GPT) e Anthropic (Claude), conectados diretamente pelas respectivas APIs. Na verificação de 02/11/2026, a chave OpenAI estava configurada e o acesso ao modelo foi confirmado pela consulta à API de modelos, sem envio de dados de clientes. A chave Anthropic ainda não estava configurada. O editor, o salvamento e a revisão funcionam independentemente das chaves.
 
-A função precisa de `LOVABLE_API_KEY` no servidor e das variáveis padrão do Supabase. Não expor a chave no frontend. A consulta GET à função retorna apenas `status` e `ia_configurada`, sem credenciais nem dados de clientes; POST continua exigindo autenticação. Ela valida a sessão com `getUser`, usa o JWT do usuário e a chave anon para todas as consultas, e confere a permissão de editar documentos. Não usa `service_role`, não salva nem protocola.
+A lateral permite escolher GPT ou Claude por consulta; essa escolha e a origem da sugestão ficam salvas com a peça. Somente o provedor escolhido recebe o conteúdo, sem fallback automático. Provedores sem chave aparecem como pendentes e não podem gerar sugestões.
+
+OpenAI usa `OPENAI_API_KEY` e o modelo `gpt-4.1` por padrão, configurável por `OPENAI_MODEL`. Anthropic usa `ANTHROPIC_API_KEY` e `claude-sonnet-4-6`, configurável por `ANTHROPIC_MODEL`. As chaves ficam apenas nos secrets do Supabase. MCP pode conectar ferramentas e fontes, mas não fornece acesso ao modelo Claude nem substitui a credencial da API Anthropic. Não expor a chave no frontend. A consulta GET à função retorna apenas `status`, `ia_configurada` e a disponibilidade booleana de cada provedor, sem credenciais nem dados de clientes; `?verificar=openai` verifica o acesso à API de modelos, sem gerar texto. POST continua exigindo autenticação. Ela valida a sessão com `getUser`, usa o JWT do usuário e a chave anon para todas as consultas, e confere a permissão de editar documentos. Não usa `service_role`, não salva nem protocola.
 
 Antes de publicar, testar em homologação com perfis reais de estagiária e advogado, confirmar as políticas existentes de clientes/processos/comentários e testar salvamento em duas sessões. A migração é aditiva, mas reforça transições de status também em outras telas que gravem `doc_pecas`.
 
