@@ -1,5 +1,7 @@
 # Área de produção jurídica
 
+**Configuração atual:** somente GPT/OpenAI está disponível na interface, por orientação da usuária. Claude foi retirado da seleção; preferências antigas por Claude não alteram o provedor das novas consultas. A base de leis ainda não foi importada nem conectada à IA.
+
 Implementação em `/documentos/pecas/novo` e `/documentos/pecas/:id`.
 
 - Editor A4 com ajuste à largura, zoom e modo de tela cheia.
@@ -24,9 +26,9 @@ Componentes da publicação:
 2. A Edge Function `documentos-assistente` e sua configuração em `supabase/config.toml`.
 3. O frontend atualizado.
 
-Os provedores selecionados pela usuária são OpenAI (GPT) e Anthropic (Claude), conectados diretamente pelas respectivas APIs. Na verificação de 02/11/2026, a chave OpenAI estava configurada e o acesso ao modelo foi confirmado pela consulta à API de modelos, sem envio de dados de clientes. A chave Anthropic ainda não estava configurada. O editor, o salvamento e a revisão funcionam independentemente das chaves.
+O provedor ativo selecionado pela usuária é OpenAI (GPT), conectado diretamente pela API. O suporte técnico à Anthropic permanece reservado para futura ativação. Na verificação de 02/11/2026, a chave OpenAI estava configurada e o acesso ao modelo foi confirmado pela consulta à API de modelos, sem envio de dados de clientes. A chave Anthropic ainda não estava configurada. O editor, o salvamento e a revisão funcionam independentemente das chaves.
 
-A lateral permite escolher GPT ou Claude por consulta; essa escolha e a origem da sugestão ficam salvas com a peça. Somente o provedor escolhido recebe o conteúdo, sem fallback automático. Provedores sem chave aparecem como pendentes e não podem gerar sugestões.
+A lateral utiliza somente GPT. A origem da sugestão fica salva com a peça. Sem a chave OpenAI, a geração fica pendente e não alterna automaticamente para outro provedor.
 
 OpenAI usa `OPENAI_API_KEY` e o modelo `gpt-4.1` por padrão, configurável por `OPENAI_MODEL`. Anthropic usa `ANTHROPIC_API_KEY` e `claude-sonnet-4-6`, configurável por `ANTHROPIC_MODEL`. As chaves ficam apenas nos secrets do Supabase. MCP pode conectar ferramentas e fontes, mas não fornece acesso ao modelo Claude nem substitui a credencial da API Anthropic. Não expor a chave no frontend. A consulta GET à função retorna apenas `status`, `ia_configurada` e a disponibilidade booleana de cada provedor, sem credenciais nem dados de clientes; `?verificar=openai` verifica o acesso à API de modelos, sem gerar texto. POST continua exigindo autenticação. Ela valida a sessão com `getUser`, usa o JWT do usuário e a chave anon para todas as consultas, e confere a permissão de editar documentos. Não usa `service_role`, não salva nem protocola.
 

@@ -116,6 +116,7 @@ function abrir() {
 
 beforeEach(() => {
   cleanup();
+  documento.contexto_producao = {};
   vi.clearAllMocks();
   mocks.invoke.mockReset();
   mocks.invoke.mockResolvedValue({
@@ -221,7 +222,8 @@ describe("área de produção — salvamento e sugestões", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("outra sessão");
   });
 
-  it("envia a consulta somente ao provedor escolhido", async () => {
+  it("usa somente GPT, mesmo quando há preferência antiga por Claude", async () => {
+    documento.contexto_producao = { provedor_ia: "anthropic" };
     mocks.invoke.mockImplementation(async (_nome, args) =>
       args.method === "GET"
         ? {
@@ -230,9 +232,9 @@ describe("área de produção — salvamento e sugestões", () => {
           }
         : {
             data: {
-              texto: "Sugestão do Claude",
+              texto: "Sugestão do GPT",
               pendencias: [],
-              modelo: "claude-sonnet-4-6",
+              modelo: "gpt-4.1",
             },
             error: null,
           },
@@ -243,34 +245,27 @@ describe("área de produção — salvamento e sugestões", () => {
       button: 0,
       ctrlKey: false,
     });
-    fireEvent.keyDown(await screen.findByLabelText("Provedor de IA"), {
-      key: "ArrowDown",
-    });
-    fireEvent.click(
-      await screen.findByRole("option", { name: "Claude · Anthropic" }),
-    );
+    expect(screen.queryByLabelText("Provedor de IA")).not.toBeInTheDocument();
     fireEvent.click(
       screen.getByRole("button", { name: "Consultar assistente" }),
     );
-    await screen.findByText("Sugestão do Claude");
+    await screen.findByText("Sugestão do GPT");
     const consultas = mocks.invoke.mock.calls.filter((c) => c[1]?.body);
     expect(consultas).toHaveLength(1);
-    expect(consultas[0][1].body.provedor).toBe("anthropic");
+    expect(consultas[0][1].body.provedor).toBe("openai");
   });
 
-  it("não consulta um provedor cuja chave ainda não foi configurada", async () => {
+  it("aguarda a configuração do GPT sem alternar para outro provedor", async () => {
+    mocks.invoke.mockResolvedValue({
+      data: { provedores: { openai: false, anthropic: true } },
+      error: null,
+    });
     abrir();
     await screen.findByLabelText("Documento");
     fireEvent.mouseDown(screen.getByRole("tab", { name: "Assistente IA" }), {
       button: 0,
       ctrlKey: false,
     });
-    fireEvent.keyDown(await screen.findByLabelText("Provedor de IA"), {
-      key: "ArrowDown",
-    });
-    fireEvent.click(
-      await screen.findByRole("option", { name: "Claude · Anthropic" }),
-    );
     await screen.findByText(/Este provedor aguarda configuração/);
     expect(
       screen.getByRole("button", { name: "Consultar assistente" }),

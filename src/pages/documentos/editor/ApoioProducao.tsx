@@ -69,7 +69,7 @@ export function ApoioProducao(props: Props) {
     { id: string; titulo: string; processo_id: string | null }[]
   >([]);
   const [erroTarefas, setErroTarefas] = useState(false);
-  const provedor = contexto.provedor_ia ?? "openai";
+  const provedor = "openai" as const;
   const [provedores, setProvedores] = useState<{
     openai: boolean;
     anthropic: boolean;
@@ -533,22 +533,10 @@ export function ApoioProducao(props: Props) {
         </TabsContent>
         <TabsContent value="ia" className="space-y-4 p-1">
           <div className="space-y-2">
-            <Label htmlFor="provedor-ia">Provedor de IA</Label>
-            <Select
-              value={provedor}
-              onValueChange={(v) => atualizar("provedor_ia", v)}
-              disabled={readOnly || gerando}
-            >
-              <SelectTrigger id="provedor-ia">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="openai">GPT · OpenAI</SelectItem>
-                <SelectItem value="anthropic">Claude · Anthropic</SelectItem>
-              </SelectContent>
-            </Select>
+            <p className="text-sm font-medium">GPT · OpenAI</p>
             <p className="text-xs text-muted-foreground">
-              Somente o provedor escolhido recebe o conteúdo desta consulta.
+              A produção jurídica utiliza o GPT com os dados e as fontes
+              informados nesta peça.
             </p>
             {provedorIndisponivel && (
               <div
