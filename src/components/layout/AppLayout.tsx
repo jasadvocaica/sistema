@@ -126,14 +126,34 @@ function MuralNavItem({ collapsed, onNavigate }: { collapsed: boolean; onNavigat
   );
 }
 
-function MenuGroup({ label, icon: Icon, items, collapsed, open, onToggle, pathname, onNavigate }: {
+export function MenuGroup({ label, icon: Icon, items, collapsed, open, onToggle, pathname, onNavigate }: {
   label: string; icon: typeof LayoutDashboard; items: NavItem[]; collapsed: boolean;
   open: boolean; onToggle: () => void; pathname: string; onNavigate?: () => void;
 }) {
   const active = items.some((item) => item.to === "/" ? pathname === "/" : pathname.startsWith(item.to));
   if (collapsed) {
-    const firstItem = items[0];
-    return <SidebarItem {...firstItem} label={label} icon={Icon} collapsed isActive={active} onNavigate={onNavigate} />;
+    return <DropdownMenu>
+      <Tooltip delayDuration={100}>
+        <TooltipTrigger asChild>
+          <DropdownMenuTrigger asChild>
+            <button type="button" aria-label={label}
+              className={cn("flex w-full items-center justify-center rounded-md py-2.5 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-primary", active && "bg-sidebar-accent text-sidebar-primary")}>
+              <Icon className="w-4 h-4" />
+            </button>
+          </DropdownMenuTrigger>
+        </TooltipTrigger>
+        <TooltipContent side="right">{label}</TooltipContent>
+      </Tooltip>
+      <DropdownMenuContent side="right" align="start" className="w-60">
+        <DropdownMenuLabel>{label}</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        {items.map((item) => <DropdownMenuItem key={item.to} asChild>
+          <NavLink to={item.to} onClick={onNavigate}>
+            <item.icon className="mr-2 h-4 w-4" />{item.label}
+          </NavLink>
+        </DropdownMenuItem>)}
+      </DropdownMenuContent>
+    </DropdownMenu>;
   }
   return <div className="space-y-1">
     <button type="button" onClick={onToggle} aria-expanded={open}
@@ -180,7 +200,7 @@ function SidebarContent({
       { to: "/processos", label: "Processos", icon: Briefcase, modulo: "processos" as Modulo },
       { to: "/controladoria", label: "Controladoria", icon: ClipboardCheck, modulo: "controladoria" as Modulo },
       { to: "/agenda", label: "Prazos e agenda", icon: Calendar },
-      { to: "/documentos", label: "Peças e documentos", icon: FileText, modulo: "documentos" as Modulo },
+      { to: "/documentos", label: "Documentos e petições", icon: FileText, modulo: "documentos" as Modulo },
       { to: "/fluxos", label: "Fluxos e POPs", icon: Workflow, modulo: "controladoria" as Modulo },
       { to: "/parceiros", label: "Parceiros", icon: Handshake, modulo: "parceiros" as Modulo },
       { to: "/ferramentas", label: "Inteligência jurídica", icon: Wrench },
@@ -214,6 +234,13 @@ function SidebarContent({
       { to: "/ia/automacoes", label: "Automações", icon: Workflow },
     ] : [] },
   ].filter((group) => group.items.length > 0);
+
+  const activeGroup = groups.find((group) => group.items.some((item) =>
+    item.to === "/" ? location.pathname === "/" : location.pathname.startsWith(item.to),
+  ))?.id;
+  useEffect(() => {
+    if (activeGroup) setOpenGroup(activeGroup);
+  }, [location.pathname, activeGroup]);
 
   return (
     <TooltipProvider delayDuration={100}>
