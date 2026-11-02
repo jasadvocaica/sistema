@@ -1,4 +1,5 @@
 // Conversão determinística: nunca interpreta vigência ou completa texto ausente.
+export const VERSAO_PARSER = 2;
 export interface EntradaCatalogo {
   path: string;
   apelidos?: string[];
@@ -13,6 +14,7 @@ export interface DispositivoImportado {
   revogado: boolean;
 }
 export interface NormaImportada {
+  parser_versao: number;
   id: string;
   titulo: string;
   numero: string;
@@ -181,26 +183,33 @@ export async function converterNorma(
     );
   const hash = await sha256(md);
   const dispositivos: DispositivoImportado[] = [];
-  const adct = texto.search(
-    /(?:ATO DAS DISPOSIÇÕES CONSTITUCIONAIS TRANSITÓRIAS|^#+\s*ADCT)/im,
-  );
+  const adct =
+    constituicao || /constitui|lei[ _-]*org/i.test(meta.tipo ?? "")
+      ? texto.search(
+          /^#{1,6}\s*(?:ATO DAS DISPOSIÇÕES CONSTITUCIONAIS TRANSITÓRIAS|ADCT)\b/im,
+        )
+      : -1;
   for (let i = 0; i < artigos.length; i++) {
     const inicio = artigos[i].index!;
     const fim = artigos[i + 1]?.index ?? texto.length;
-    const numero = artigos[i][1].replace(/[º°]/g, "").replace(/^(\d+)o/, "$1").replace(/\s/g, "").replace("–", "-");
+    const numero = artigos[i][1]
+      .replace(/[º°]/g, "")
+      .replace(/^(\d+)o/, "$1")
+      .replace(/\s/g, "")
+      .replace("–", "-");
     const rotulo = `${adct >= 0 && inicio > adct ? "ADCT, " : ""}Art. ${numero}`;
     let trecho = texto.slice(inicio, fim).trim();
     // Não leva títulos do artigo seguinte ou assinaturas para o dispositivo anterior.
     trecho = trecho.replace(/\n#+\s[^]*$/, "").trim();
     const revogado =
       /^Art(?:igo)?\.?\s*\d+[º°o]?(?:\s*[-–]\s*[A-Z])?\s*[.]?\s*\(?\s*(?:revogad[oa]|vetad[oa])/i.test(
-        trecho.split("\n")[0],
+        trecho.split("\n")[0].replace(/[*_]/g, ""),
       );
     const partes = fragmentar(trecho);
     for (let j = 0; j < partes.length; j++) {
       const sequencia = dispositivos.length + 1;
       dispositivos.push({
-        id: await sha256(`${path}@${hash}:${sequencia}`),
+        id: await sha256(`${path}@${hash}:parser${VERSAO_PARSER}:${sequencia}`),
         sequencia,
         artigo:
           partes.length > 1
@@ -219,6 +228,7 @@ export async function converterNorma(
     .join("\n")
     .slice(0, 3500);
   return {
+    parser_versao: VERSAO_PARSER,
     id: path,
     titulo:
       meta.titulo || "Constituição da República Federativa do Brasil de 1988",

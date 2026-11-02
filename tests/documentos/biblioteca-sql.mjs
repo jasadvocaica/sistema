@@ -17,8 +17,33 @@ try {
       "utf8",
     ),
   );
-  await db.exec(await readFile(new URL("../../supabase/migrations/20261102151719_biblioteca_busca_sem_acento.sql", import.meta.url), "utf8"));
-  await db.exec(await readFile(new URL("../../supabase/migrations/20261102151901_biblioteca_consulta_lexemas.sql", import.meta.url), "utf8"));
+  await db.exec(
+    await readFile(
+      new URL(
+        "../../supabase/migrations/20261102151719_biblioteca_busca_sem_acento.sql",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
+  );
+  await db.exec(
+    await readFile(
+      new URL(
+        "../../supabase/migrations/20261102151901_biblioteca_consulta_lexemas.sql",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
+  );
+  await db.exec(
+    await readFile(
+      new URL(
+        "../../supabase/migrations/20261102153459_biblioteca_precisao_artigos.sql",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
+  );
   const base = {
     id: "federal/teste.md",
     titulo: "Lei de teste",
@@ -125,6 +150,100 @@ try {
     nova.sha256,
     "falha deve reverter versão ativa",
   );
+  const versaoParser2 = {
+    ...nova,
+    parser_versao: 2,
+    dispositivos: [{ ...nova.dispositivos[0], id: "9".repeat(64) }],
+  };
+  await importar(versaoParser2);
+  assert.equal(
+    (
+      await db.query(
+        "select * from public.jur_pesquisar('',null,12,$1::text[])",
+        [[nova.dispositivos[0].id]],
+      )
+    ).rows.length,
+    0,
+    "fragmento de parser antigo deve ficar fora da busca ativa",
+  );
+  assert.equal(
+    (await db.query("select * from public.jur_normas_versoes")).rows.length,
+    2,
+    "reindexar não deve duplicar o original da mesma versão",
+  );
+  await db.exec("BEGIN");
+  const cpc = {
+    ...base,
+    id: "federal/cpc.md",
+    titulo: "Código de Processo Civil",
+    numero: "13105",
+    apelidos: ["CPC", "Código de Processo Civil"],
+    dispositivos: [
+      {
+        id: "3".repeat(64),
+        sequencia: 1,
+        artigo: "Art. 300",
+        artigo_numero: "300",
+        texto: "Art. 300. Tutela de urgência.",
+        revogado: false,
+      },
+    ],
+  };
+  const clt = {
+    ...base,
+    id: "federal/clt.md",
+    titulo: "CLT",
+    tipo: "Decreto-Lei",
+    numero: "5452",
+    apelidos: ["CLT"],
+    dispositivos: [
+      {
+        id: "4".repeat(64),
+        sequencia: 1,
+        artigo: "ADCT, Art. 300",
+        artigo_numero: "300",
+        texto: "Art. 300. Transferência do empregado.",
+        revogado: false,
+      },
+      {
+        id: "5".repeat(64),
+        sequencia: 2,
+        artigo: "Art. 20",
+        artigo_numero: "20",
+        texto: "Art. 20. *(Revogado pela Lei...)*",
+        revogado: false,
+      },
+      {
+        id: "7".repeat(64),
+        sequencia: 3,
+        artigo: "ADCT, Art. 818",
+        artigo_numero: "818",
+        texto: "Art. 818. O ônus da prova incumbe...",
+        revogado: false,
+      },
+    ],
+  };
+  await importar(cpc);
+  await importar(clt);
+  assert.equal(
+    (await db.query("select * from public.jur_pesquisar('CPC art. 300')")).rows
+      .length,
+    1,
+    "sigla deve limitar a norma, sem confundir artigos de igual número",
+  );
+  assert.equal(
+    (await db.query("select * from public.jur_pesquisar('CLT art. 20')")).rows
+      .length,
+    0,
+    "revogação em itálico não pode ser usada como fundamento",
+  );
+  assert.equal(
+    (await db.query("select * from public.jur_pesquisar('CLT art. 818')"))
+      .rows[0].artigo,
+    "Art. 818",
+    "lei ordinária não pode apresentar rótulo ADCT",
+  );
+  await db.exec("ROLLBACK");
   await db.exec(
     "SET request.jwt.claim.sub='00000000-0000-4000-8000-000000000002'",
   );
@@ -133,9 +252,27 @@ try {
     (await db.query("select * from public.jur_pesquisar('BPC')")).rows.length,
     1,
   );
-  assert.equal((await db.query("select * from public.jur_pesquisar('beneficio prestacao')")).rows.length,1,"busca sem acentos deve encontrar o texto preservado com acentos");
-  assert.equal((await db.query("select * from public.jur_pesquisar('Lei 1.23 art. 20')")).rows.length,1,"numeração com pontos deve encontrar a lei correta");
-  assert.equal((await db.query("select * from public.jur_pesquisar('Lei 999 art. 20')")).rows.length,0,"lei diferente não deve ser substituída por outra fonte");
+  assert.equal(
+    (
+      await db.query(
+        "select * from public.jur_pesquisar('beneficio prestacao')",
+      )
+    ).rows.length,
+    1,
+    "busca sem acentos deve encontrar o texto preservado com acentos",
+  );
+  assert.equal(
+    (await db.query("select * from public.jur_pesquisar('Lei 1.23 art. 20')"))
+      .rows.length,
+    1,
+    "numeração com pontos deve encontrar a lei correta",
+  );
+  assert.equal(
+    (await db.query("select * from public.jur_pesquisar('Lei 999 art. 20')"))
+      .rows.length,
+    0,
+    "lei diferente não deve ser substituída por outra fonte",
+  );
   const estado = (await db.query("select public.jur_estado() as r")).rows[0].r;
   assert.equal(estado.normas, 1);
   assert.equal(estado.dispositivos, 1);

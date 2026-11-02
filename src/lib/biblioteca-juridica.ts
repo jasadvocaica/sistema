@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+export { prepararConsulta } from "../../supabase/functions/_shared/fundamentos";
 export type { FonteLegal } from "../../supabase/functions/_shared/fundamentos";
 export interface EstadoBiblioteca {
   normas: number;

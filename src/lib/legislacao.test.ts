@@ -12,7 +12,7 @@ import {
 
 const commit = "a".repeat(40);
 const path = "federal/leis-ordinarias/2020/lei-123-2020-01-01.md";
-const norma = `---\ntitulo: "Lei nº 123"\nnumero: "123"\ntipo: "Lei Ordinária"\nfonte: "https://www.planalto.gov.br/teste.htm"\nversao_texto: "compilada"\nbaixado_em: 2026-10-13\n---\n# Lei\n\n**Art. 1º** Direito antigo: ~~redação anterior~~ redação atual.\n\n**Art. 2º** (Revogado).\n\n**Art. 3º-A** Outra regra.`;
+const norma = `---\ntitulo: "Lei nº 123"\nnumero: "123"\ntipo: "Lei Ordinária"\nfonte: "https://www.planalto.gov.br/teste.htm"\nversao_texto: "compilada"\nbaixado_em: 2026-10-13\n---\n# Lei\n\n**Art. 1º** Direito antigo: ~~redação anterior~~ redação atual.\n\n**Art. 2º** *(Revogado).*\n\n**Art. 3º-A** Outra regra.`;
 const fonte: FonteLegal = {
   id: "b".repeat(64),
   norma_id: path,
@@ -80,6 +80,20 @@ describe("biblioteca jurídica — importação e referências", () => {
     const n = await converterNorma(texto, { path: "constituicao.md" }, commit);
     expect(n.dispositivos.every((d) => d.texto.length <= 6500)).toBe(true);
     expect(n.dispositivos.at(-1)?.artigo).toContain("ADCT");
+  });
+  it("não classifica referências ao ADCT dentro de lei ordinária como seção constitucional", async () => {
+    const n = await converterNorma(
+      norma.replace(
+        "Direito antigo:",
+        "Referência ao ATO DAS DISPOSIÇÕES CONSTITUCIONAIS TRANSITÓRIAS. Direito antigo:",
+      ),
+      { path },
+      commit,
+    );
+    expect(n.dispositivos.every((d) => !d.artigo.startsWith("ADCT"))).toBe(
+      true,
+    );
+    expect(n.parser_versao).toBe(2);
   });
   it("restringe importação ao repositório e impede travessia de diretórios", () => {
     expect(

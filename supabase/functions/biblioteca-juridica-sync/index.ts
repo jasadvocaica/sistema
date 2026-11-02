@@ -2,7 +2,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.104.1";
 import { createRemoteJWKSet, jwtVerify } from "https://esm.sh/jose@5.9.6";
 import { importarNorma } from "../_shared/importacao-legislacao.ts";
-import type { EntradaCatalogo } from "../_shared/legislacao.ts";
+import { VERSAO_PARSER, type EntradaCatalogo } from "../_shared/legislacao.ts";
 
 const jwks = createRemoteJWKSet(
   new URL("https://token.actions.githubusercontent.com/.well-known/jwks"),
@@ -65,6 +65,17 @@ Deno.serve(async (req) => {
         })),
       });
     }
+    if (
+      body.parser_versao !== undefined &&
+      body.parser_versao !== VERSAO_PARSER
+    )
+      return json(
+        {
+          error:
+            "A versão do importador difere do catálogo. Atualize a função antes de sincronizar.",
+        },
+        409,
+      );
     if (
       !/^[a-f0-9]{40}$/.test(body.commit ?? "") ||
       !Array.isArray(body.normas) ||

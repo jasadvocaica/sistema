@@ -8,7 +8,8 @@
       "apelidos": [
         "Constituição Federal",
         "CF",
-        "CF88"
+        "CF88",
+        "ADCT"
       ],
       "areas": [
         "geral"
@@ -287,5 +288,6 @@
         "previdenciario"
       ]
     }
-  ]
+  ],
+  "parser_versao": 2
 }

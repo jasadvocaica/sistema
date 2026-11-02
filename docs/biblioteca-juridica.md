@@ -22,7 +22,7 @@ A sugestão mostra separadamente as fontes consultadas e aquelas que o modelo de
 
 ## Atualização e ampliação
 
-O workflow **Atualizar biblioteca jurídica** executa diariamente às **05h23 de Cuiabá**, pode ser disparado pela interface do GitHub e também executa quando o catálogo ou o próprio workflow muda em `main`. Ele verifica as normas do catálogo e as já cadastradas na biblioteca. Conteúdo inalterado não gera outra cópia; alterações criam uma versão imutável e atualizam a pesquisa ativa.
+O workflow **Atualizar biblioteca jurídica** executa diariamente às **05h23 de Cuiabá**, pode ser disparado pela interface do GitHub e também executa quando o catálogo ou o próprio workflow muda em `main`. Ele verifica as normas do catálogo e as já cadastradas na biblioteca. Conteúdo inalterado não gera outra cópia; alterações criam uma versão imutável e atualizam a pesquisa ativa. Revisões do indexador reprocessam os artigos sem duplicar o texto original; a pesquisa utiliza apenas a revisão ativa.
 
 A gestão pode importar outras normas pela aba Legislação, colando o link do arquivo Markdown em `github.com/ctresb/leis`. O importador restringe URLs/caminhos à origem esperada. Documentos incompatíveis ou sem origem/artigos identificáveis são recusados para conferência. Para ampliar a carga inicial programaticamente, acrescente entradas ao catálogo.
 

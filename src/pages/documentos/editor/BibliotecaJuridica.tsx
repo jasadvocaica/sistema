@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/select";
 import {
   consultarBiblioteca,
+  prepararConsulta,
   type EstadoBiblioteca,
   type FonteLegal,
 } from "@/lib/biblioteca-juridica";
@@ -144,11 +145,12 @@ export function BibliotecaJuridica(props: Props) {
     props.onPesquisar(consulta.trim(), norma);
     try {
       const r = await consultarBiblioteca<FonteLegal[]>("jur_pesquisar", {
-        p_consulta: consulta.trim(),
+        p_consulta: prepararConsulta(consulta.trim()),
         p_norma_id: norma || null,
         p_limite: 12,
       });
-      if (montado.current && atual === buscaId.current) setFontes(Array.isArray(r) ? r : []);
+      if (montado.current && atual === buscaId.current)
+        setFontes(Array.isArray(r) ? r : []);
     } catch (e) {
       if (montado.current && atual === buscaId.current)
         setErro(e instanceof Error ? e.message : "Falha na pesquisa.");

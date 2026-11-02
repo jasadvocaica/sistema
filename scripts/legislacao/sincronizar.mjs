@@ -51,7 +51,11 @@ for (let i = 0; i < normas.length; i += 2) {
   let data;
   for (let tentativa = 0; tentativa < 3; tentativa++) {
     try {
-      data = await chamar({ commit, normas: normas.slice(i, i + 2) });
+      data = await chamar({
+        commit,
+        parser_versao: catalogo.parser_versao,
+        normas: normas.slice(i, i + 2),
+      });
       break;
     } catch (e) {
       if (tentativa === 2) throw e;
