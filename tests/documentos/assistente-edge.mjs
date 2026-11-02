@@ -1,6 +1,7 @@
 // Executa o handler real com Auth, banco e provedor simulados; nenhuma chamada externa.
 import { readFile } from "node:fs/promises";
-import { transform } from "esbuild";
+import { build } from "esbuild";
+import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
 
 const source = (
@@ -12,11 +13,9 @@ const source = (
     "utf8",
   )
 ).replace(/import\s*\{\s*createClient\s*\}\s*from\s*"[^"]+";/, "");
-const { code } = await transform(source, {
-  loader: "ts",
-  format: "cjs",
-  target: "es2022",
-});
+const compilado=await build({stdin:{contents:source,loader:"ts",resolveDir:fileURLToPath(new URL("../../supabase/functions/documentos-assistente/",import.meta.url))},bundle:true,write:false,platform:"node",format:"cjs",target:"es2022"});
+const code=compilado.outputFiles[0].text;
+
 const ids = {
   user: "00000000-0000-4000-8000-000000000001",
   peca: "10000000-0000-4000-8000-000000000001",
@@ -33,6 +32,7 @@ let handler,
   providerCode = null,
   providerFinish = "stop",
   enviado;
+let fundamentos=[], inventarFonte=false;
 const authOptions = [];
 const client = {
   auth: {
@@ -41,7 +41,7 @@ const client = {
       error: null,
     }),
   },
-  rpc: async () => ({ data: permitido, error: null }),
+  rpc: async (nome,args) => nome === "jur_pesquisar" ? {data:args.p_ids?fundamentos.filter((f)=>args.p_ids.includes(f.id)):fundamentos,error:null} : { data: permitido, error: null },
   from(table) {
     const data =
       table === "doc_pecas"
@@ -121,6 +121,7 @@ const fetchMock = async (url, options) => {
           finish_reason: providerFinish,
           message: {
             content: JSON.stringify({
+              fontes_utilizadas: inventarFonte?["L99"]:fundamentos.length?["L1"]:[],
               texto: "Sugestão para revisão",
               pendencias: ["Conferir documentos"],
             }),
@@ -204,7 +205,8 @@ assert.equal(
 );
 const sucesso = await call();
 assert.equal(sucesso.status, 200);
-assert.deepEqual(await sucesso.json(), {
+const jsonSucesso=await sucesso.json();
+assert.deepEqual({provedor:jsonSucesso.provedor,modelo:jsonSucesso.modelo,texto:jsonSucesso.texto,pendencias:jsonSucesso.pendencias}, {
   provedor: "openai",
   modelo: "gpt-4.1",
   texto: "Sugestão para revisão",
@@ -218,9 +220,17 @@ assert.ok(
   ),
 );
 assert.ok(!JSON.stringify(enviado).includes("NÃO USAR COMO PROVA"));
+fundamentos=[{id:"b".repeat(64),norma_id:"lei-teste",titulo:"Lei de teste",artigo:"Art. 20",trecho:"TEXTO ORIGINAL RECUPERADO DO BANCO",fonte_oficial:"https://www.planalto.gov.br/lei",fonte_repositorio:"https://github.com/ctresb/leis/blob/"+"a".repeat(40)+"/lei.md",versao_sha:"c".repeat(64),commit:"a".repeat(40),versao_texto:"compilada",capturado_em:"2026-10-13",importado_em:"2026-11-02T12:00:00Z",notas:""}];
+const fundamentada=await call({...body,contexto:{...body.contexto,fontes:[{origem:"biblioteca",dispositivo_id:fundamentos[0].id,trecho:"TEXTO FORJADO PELO CLIENTE"}]}});
+assert.equal(fundamentada.status,200);
+const pacote=await fundamentada.json();assert.equal(pacote.fontes_utilizadas[0].id,fundamentos[0].id);
+assert.ok(JSON.stringify(enviado).includes("TEXTO ORIGINAL RECUPERADO DO BANCO"));
+assert.ok(!JSON.stringify(enviado).includes("TEXTO FORJADO PELO CLIENTE"));
+inventarFonte=true;assert.equal((await call()).status,502);inventarFonte=false;fundamentos=[];
 const claude = await call({ ...body, provedor: "anthropic" });
 assert.equal(claude.status, 200);
-assert.deepEqual(await claude.json(), {
+const jsonClaude=await claude.json();
+assert.deepEqual({provedor:jsonClaude.provedor,modelo:jsonClaude.modelo,texto:jsonClaude.texto,pendencias:jsonClaude.pendencias}, {
   provedor: "anthropic",
   modelo: "claude-sonnet-4-6",
   texto: "Sugestão Claude",

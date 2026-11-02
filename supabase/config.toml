@@ -1,5 +1,12 @@
 project_id = "mzwnljgujheumdslkloc"
 
+[functions.biblioteca-juridica]
+verify_jwt = false
+
+[functions.biblioteca-juridica-sync]
+# Autenticação OIDC do workflow jasadvocaica/sistema, verificada na função.
+verify_jwt = false
+
 [functions.documentos-assistente]
 # A função valida a sessão e mantém todas as consultas sob RLS do usuário.
 verify_jwt = false

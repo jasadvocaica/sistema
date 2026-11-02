@@ -1,5 +1,6 @@
 // Apoio à produção: somente sugere. Não salva peças, altera prazos ou protocola.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.104.1";
+import { buscarFundamentos, fontesCitadas } from "../_shared/fundamentos.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -187,8 +188,39 @@ Deno.serve(async (req) => {
       prazo_interno: contexto.prazo_interno,
       prazo_processual: contexto.prazo_processual,
       prazo_conferido: contexto.prazo_conferido,
-      fontes: contexto.fontes,
+      fontes_informadas_pela_equipe: Array.isArray(contexto.fontes)
+        ? contexto.fontes
+            .filter((f: { origem?: string }) => f.origem !== "biblioteca")
+            .slice(0, 20)
+        : [],
     };
+    const fontesSelecionadas = Array.isArray(contexto.fontes)
+      ? contexto.fontes
+          .filter((f: { origem?: string }) => f.origem === "biblioteca")
+          .map((f: { dispositivo_id?: string }) => f.dispositivo_id)
+          .filter((id: unknown): id is string => typeof id === "string")
+      : [];
+    let pesquisa: Awaited<ReturnType<typeof buscarFundamentos>>;
+    try { pesquisa = await buscarFundamentos(client, {
+      consulta:
+        typeof contexto.pesquisa_legislacao === "string" &&
+        contexto.pesquisa_legislacao.trim()
+          ? contexto.pesquisa_legislacao
+          : [
+              contexto.objetivo,
+              body.instrucao,
+              processo?.area_direito,
+              processo?.tipo_acao,
+              contexto.orientacoes,
+            ]
+              .filter((v) => typeof v === "string")
+              .join(" "),
+      normaId:
+        typeof contexto.norma_pesquisa === "string"
+          ? contexto.norma_pesquisa
+          : undefined,
+      selecionados: fontesSelecionadas,
+    }); } catch (e) { return json({error:e instanceof Error?e.message:"A pesquisa de legislação está indisponível."},503); }
     const provedor = body.provedor ?? "openai";
     const nomeProvedor = provedor === "anthropic" ? "Anthropic" : "OpenAI";
     const key = Deno.env.get(
@@ -220,11 +252,13 @@ REGRAS:
 - Separe fatos documentados, alegações, informações faltantes e sugestões. Não invente dados, valores, datas, documentos ou provas.
 - Para dados essenciais ausentes use [INSERIR: descrição]. Não presuma assinatura, nome ou OAB do advogado.
 - Fundamentos específicos e citações literais somente dos trechos de fontes fornecidos. Nunca invente artigos, ementas, precedentes ou números de processos.
-- Não existe conexão com acervo de leis, internet ou tribunais nesta consulta. URLs são referências informadas pelo usuário e NÃO foram abertas nem verificadas.
+- A biblioteca jurídica recuperou os dispositivos fornecidos em legislacao_recuperada. A cobertura é parcial. Use somente esses textos e as fontes informadas pela equipe; nunca complete um dispositivo pela memória.
+- URLs oficiais e versões identificam a origem dos textos; não foram consultados tribunais nem páginas externas em tempo real nesta geração.
+- Ao fundamentar, identifique a norma e o artigo no texto. Liste em fontes_utilizadas apenas as referências L1, L2 etc. efetivamente utilizadas. Não trate todas as fontes consultadas como citadas.
 - Não certifique vigência, integralidade ou aplicação temporal das fontes. Se necessário, inclua na lista de pendências a conferência oficial da redação aplicável.
 - Não calcule ou confirme prazo processual; registre dúvidas para conferência pelo responsável. Não aprove estratégia, não protocole e não conclua tarefas.
 - Preserve a finalidade da peça e as orientações expressas. Não introduza honorários, índices ou valores padronizados sem informação do caso.
-- Retorne JSON válido no formato {"texto":"sugestão completa em texto simples, sem HTML nem cercas de código","pendencias":["pontos concretos a conferir"]}.`;
+- Retorne JSON válido no formato {"texto":"sugestão completa em texto simples, sem HTML nem cercas de código","pendencias":["pontos concretos a conferir"],"fontes_utilizadas":["L1"]}.`;
     const mensagem = JSON.stringify({
       instrucao: body.instrucao,
       titulo: body.titulo,
@@ -232,6 +266,17 @@ REGRAS:
       processo,
       contexto: dadosContexto,
       minuta_atual: body.conteudo,
+      legislacao_recuperada: pesquisa.fontes.map((f) => ({
+        referencia: f.referencia,
+        norma: f.titulo,
+        artigo: f.artigo,
+        texto: f.trecho,
+        fonte_oficial: f.fonte_oficial,
+        versao_texto: f.versao_texto,
+        capturado_em: f.capturado_em,
+        notas: f.notas,
+      })),
+      avisos_pesquisa: pesquisa.avisos,
     });
     const resposta = await fetch(
       provedor === "anthropic"
@@ -348,10 +393,16 @@ REGRAS:
     }
     if (typeof resultado?.texto !== "string" || !resultado.texto.trim())
       return json({ error: "A sugestão veio vazia. Tente novamente." }, 502);
+    let citadas;
+    try { citadas = fontesCitadas(resultado.fontes_utilizadas, pesquisa.fontes); } catch (e) { return json({error:e instanceof Error?e.message:"Não foi possível conferir as citações."},502); }
     return json({
       provedor,
       modelo,
       texto: resultado.texto,
+      fontes_consultadas: pesquisa.fontes,
+      fontes_utilizadas: citadas,
+      consulta_legislacao: pesquisa.consulta,
+      avisos_pesquisa: pesquisa.avisos,
       pendencias: Array.isArray(resultado.pendencias)
         ? resultado.pendencias.filter((p: unknown) => typeof p === "string")
         : [],

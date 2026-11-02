@@ -12,7 +12,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:documentos:db": "node tests/documentos/workspace-sql.mjs",
-    "test:documentos:edge": "node tests/documentos/assistente-edge.mjs"
+    "test:documentos:edge": "node tests/documentos/assistente-edge.mjs",
+    "test:legislacao": "vitest run src/lib/legislacao.test.ts src/pages/documentos/editor/BibliotecaJuridica.test.tsx && node tests/documentos/biblioteca-sql.mjs && node tests/documentos/biblioteca-edge.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

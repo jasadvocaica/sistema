@@ -1359,6 +1359,8 @@ export default function PecaForm() {
                 c.prazo_interno,
                 c.prazo_processual,
                 c.fontes,
+                c.pesquisa_legislacao,
+                c.norma_pesquisa,
               ];
               setContexto(
                 JSON.stringify(materiais(novo)) ===

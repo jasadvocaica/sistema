@@ -1,6 +1,6 @@
 # Área de produção jurídica
 
-**Configuração atual:** somente GPT/OpenAI está disponível na interface, por orientação da usuária. Claude foi retirado da seleção; preferências antigas por Claude não alteram o provedor das novas consultas. A base de leis ainda não foi importada nem conectada à IA.
+**Configuração atual:** somente GPT/OpenAI está disponível na interface, por orientação da usuária. Claude foi retirado da seleção; preferências antigas por Claude não alteram o provedor das novas consultas. A produção está conectada à biblioteca de legislação importada; consulte a cobertura na aba Legislação e os detalhes em [biblioteca-juridica.md](biblioteca-juridica.md).
 
 Implementação em `/documentos/pecas/novo` e `/documentos/pecas/:id`.
 
@@ -36,7 +36,7 @@ Antes de publicar, testar em homologação com perfis reais de estagiária e adv
 
 ## Limites atuais da assistência
 
-O repositório de leis ainda **não foi importado nem indexado**. A IA recebe a minuta, nome do cliente, identificação básica do processo e os trechos informados no contexto. Links não são buscados; anexos não são lidos automaticamente. A interface identifica essas condições. Não existe cálculo automático de prazo ou acionamento automático após DJEN nesta entrega.
+A biblioteca indexa as normas importadas do repositório, com pesquisa por dispositivo e versão. A cobertura inicial é parcial e aparece na aba Legislação. A IA recebe a minuta, nome do cliente, identificação básica do processo, contexto informado e dispositivos recuperados. Links informados manualmente não são abertos durante a geração; anexos do caso não são lidos automaticamente. Não existe cálculo automático de prazo ou acionamento automático após DJEN nesta entrega.
 
 A última sugestão e suas pendências são salvas com o contexto. A IA não confirma vigência de fontes, não inventa prova e deve marcar lacunas como `[INSERIR: ...]`. A revisão final é humana.
 

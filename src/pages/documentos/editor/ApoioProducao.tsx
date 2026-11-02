@@ -12,6 +12,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { BibliotecaJuridica, FonteLegalCard } from "./BibliotecaJuridica";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -267,6 +268,15 @@ export function ApoioProducao(props: Props) {
       onContexto({
         ...contextoAtual.current,
         ultima_ia: {
+          fontes_consultadas: Array.isArray(data.fontes_consultadas)
+            ? data.fontes_consultadas
+            : [],
+          fontes_utilizadas: Array.isArray(data.fontes_utilizadas)
+            ? data.fontes_utilizadas
+            : [],
+          avisos_pesquisa: Array.isArray(data.avisos_pesquisa)
+            ? data.avisos_pesquisa
+            : [],
           provedor,
           modelo: typeof data.modelo === "string" ? data.modelo : undefined,
           acao,
@@ -302,8 +312,9 @@ export function ApoioProducao(props: Props) {
         </div>
       </div>
       <Tabs value={aba} onValueChange={setAba} className="p-3">
-        <TabsList className="grid grid-cols-3 w-full">
+        <TabsList className="grid grid-cols-4 w-full [&>button]:text-xs [&>button]:px-1">
           <TabsTrigger value="contexto">Contexto</TabsTrigger>
+          <TabsTrigger value="legislacao">Legislação</TabsTrigger>
           <TabsTrigger value="ia">Assistente IA</TabsTrigger>
           <TabsTrigger value="revisao">Revisão</TabsTrigger>
         </TabsList>
@@ -450,13 +461,15 @@ export function ApoioProducao(props: Props) {
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground">
-                O acervo de leis ainda não está conectado. A IA recebe somente
-                os trechos informados; links não são acessados automaticamente.
+                Pesquise artigos na aba Legislação. Fontes acrescentadas
+                manualmente precisam de conferência; links não são abertos
+                automaticamente.
               </p>
               {contexto.fontes.map((f) => (
                 <div key={f.id} className="rounded-lg border p-3 space-y-2">
                   <div className="flex gap-1">
                     <Input
+                      readOnly={f.origem === "biblioteca"}
                       aria-label="Identificação da fonte"
                       placeholder="Lei, artigo ou documento"
                       value={f.titulo}
@@ -486,6 +499,7 @@ export function ApoioProducao(props: Props) {
                     </Button>
                   </div>
                   <Input
+                    readOnly={f.origem === "biblioteca"}
                     aria-label="URL da fonte"
                     placeholder="https://fonte-oficial..."
                     value={f.url}
@@ -504,6 +518,7 @@ export function ApoioProducao(props: Props) {
                     </p>
                   )}
                   <Textarea
+                    readOnly={f.origem === "biblioteca"}
                     aria-label="Trecho da fonte"
                     value={f.trecho}
                     placeholder="Transcrição consultada, versão e data de consulta"
@@ -530,6 +545,42 @@ export function ApoioProducao(props: Props) {
               ))}
             </div>
           </fieldset>
+        </TabsContent>
+        <TabsContent value="legislacao">
+          <BibliotecaJuridica
+            gestor={isGestor}
+            readOnly={readOnly}
+            consultaInicial={contexto.pesquisa_legislacao}
+            normaInicial={contexto.norma_pesquisa}
+            selecionados={contexto.fontes.map((f) => f.dispositivo_id ?? "")}
+            onPesquisar={(q, norma) => {
+              if (!readOnly)
+                onContexto({
+                  ...contexto,
+                  pesquisa_legislacao: q,
+                  norma_pesquisa: norma,
+                });
+            }}
+            onAdicionar={(f) => {
+              if (!contexto.fontes.some((s) => s.dispositivo_id === f.id))
+                onContexto({
+                  ...contexto,
+                  fontes: [
+                    ...contexto.fontes,
+                    {
+                      id: `biblioteca:${f.id}`,
+                      titulo: `${f.titulo} — ${f.artigo}`,
+                      url: f.fonte_oficial,
+                      trecho: f.trecho,
+                      origem: "biblioteca",
+                      dispositivo_id: f.id,
+                      versao_sha: f.versao_sha,
+                      commit: f.commit,
+                    },
+                  ],
+                });
+            }}
+          />
         </TabsContent>
         <TabsContent value="ia" className="space-y-4 p-1">
           <div className="space-y-2">
@@ -560,7 +611,8 @@ export function ApoioProducao(props: Props) {
           </div>
           <div className="rounded-lg bg-muted p-3 text-xs leading-relaxed">
             O assistente usa a minuta atual e o contexto informado. A resposta é
-            uma sugestão para conferência do advogado.
+            uma sugestão para conferência do advogado. Antes de redigir, ele
+            pesquisa os dispositivos do acervo importado.
           </div>
           <div className="grid grid-cols-3 gap-1">
             {[
@@ -648,6 +700,38 @@ export function ApoioProducao(props: Props) {
               <p className="text-xs text-muted-foreground">
                 Aplicar a sugestão preserva a minuta atual no histórico.
               </p>
+              {(contexto.ultima_ia.avisos_pesquisa?.length ?? 0) > 0 && (
+                <details className="text-xs rounded-lg bg-muted p-3">
+                  <summary className="cursor-pointer font-medium">
+                    Conferência das fontes
+                  </summary>
+                  <ul className="list-disc pl-4 mt-2 space-y-1">
+                    {contexto.ultima_ia.avisos_pesquisa?.map((a, i) => (
+                      <li key={i}>{a}</li>
+                    ))}
+                  </ul>
+                </details>
+              )}
+              {(contexto.ultima_ia.fontes_consultadas?.length ?? 0) > 0 && (
+                <div className="space-y-2">
+                  <h3 className="text-sm font-semibold">
+                    Legislação consultada nesta sugestão
+                  </h3>
+                  <p className="text-xs text-muted-foreground">
+                    Cada trecho mantém a fonte e a versão recuperada. O destaque
+                    indica as fontes que a IA declarou utilizar.
+                  </p>
+                  {contexto.ultima_ia.fontes_consultadas?.map((f) => (
+                    <FonteLegalCard
+                      key={f.id}
+                      fonte={f}
+                      usada={contexto.ultima_ia?.fontes_utilizadas?.some(
+                        (u) => u.id === f.id,
+                      )}
+                    />
+                  ))}
+                </div>
+              )}
               <div className="flex flex-wrap gap-2">
                 {[false, true].map((substituir) => (
                   <Button

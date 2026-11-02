@@ -5,9 +5,15 @@ export interface FonteProducao {
   titulo: string;
   url: string;
   trecho: string;
+  origem?: "biblioteca";
+  dispositivo_id?: string;
+  versao_sha?: string;
+  commit?: string;
 }
 
 export interface ContextoProducao {
+  pesquisa_legislacao?: string;
+  norma_pesquisa?: string;
   provedor_ia?: "openai" | "anthropic";
   tarefa_id: string;
   intimacao: string;
@@ -20,6 +26,9 @@ export interface ContextoProducao {
   fontes: FonteProducao[];
   checklist: string[];
   ultima_ia?: {
+    fontes_consultadas?: import("@/lib/biblioteca-juridica").FonteLegal[];
+    fontes_utilizadas?: import("@/lib/biblioteca-juridica").FonteLegal[];
+    avisos_pesquisa?: string[];
     provedor?: "openai" | "anthropic";
     modelo?: string;
     acao: string;
